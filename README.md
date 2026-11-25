@@ -1,0 +1,85 @@
+# WALLFLOW
+
+A personal, physical-feeling wall for ideas and reminders. Frontend milestone 1: a genuine 3D plaster wall, tactile paper notes, and a minimal HTML interface.
+
+## Run locally
+
+Requires Node.js 20.19+ or 22.12+ and npm.
+
+```sh
+npm install
+npm run dev
+```
+
+Open the local URL printed by Vite, normally http://localhost:5173.
+
+```sh
+npm run typecheck
+npm test
+npm run build
+npm run preview
+```
+
+`npm test` uses Node's built-in test runner and TypeScript stripping, so it requires Node 22.18+ (Node 24 LTS is recommended). The app itself supports Vite's Node requirements above.
+
+## Use your wall
+
+- **Select (V):** drag a note in its wall plane. Double-click to edit. On mobile, tap a note and choose **Edit note**.
+- **Pan (H):** drag the wall, right-drag with a mouse, or use two fingers on a touch screen.
+- **Orbit (O):** drag to move the camera around the wall.
+- **Zoom:** scroll, pinch with two fingers, or use the toolbar. **0** resets the camera.
+- **Rotate wall:** adjust tilt and turn, then apply. This transforms the wall and all its children independently of the camera. Straighten resets only the wall.
+- **Add (N):** write a note and choose its color. Selecting a toolbar swatch recolors the selected note or sets the next note's color.
+- **Undo / redo:** toolbar, Cmd/Ctrl+Z, Cmd/Ctrl+Shift+Z, or Ctrl+Y. A drag is a single history entry.
+- **Search:** the search button or Cmd/Ctrl+K. Select a result to bring it into view.
+- **Settings:** wall name, daylight / warm lighting, and interaction hints.
+- **Help:** the bottom-right button or **?**.
+
+Notes and settings persist in this browser's local storage. If storage is blocked or full, the header indicates that work is only available for the session. No account, server, or external API is used.
+
+## Source layout
+
+```text
+src/
+  app/                      Application composition
+  components/
+    wall/                   Solid wall and its attached note group
+    sticky-note/            Raycast paper mesh and accessible HTML editor
+    toolbar/                Branding, creation tools, camera modes, wall controls
+    ui/                     Dialogs, buttons, and rendering fallback
+  three/                    Scene, camera rig, paper geometry, procedural textures
+  stores/                   Typed Zustand state, persistence, undo and redo
+  hooks/                    Keyboard shortcuts
+  types/                    Shared domain types
+  utils/                    Constants, bounds, and safe local storage
+  styles/                   Tailwind entry point and responsive interface styles
+tests/                      Store history, persistence, bounds, and 3D invariants
+public/fonts/               Self-hosted DM Sans and its open font license
+```
+
+## Implementation notes
+
+The wall is a thick Three.js box with a matte, procedurally textured material. Each note is a subdivided paper mesh with a slightly lifted lower edge, a high-resolution canvas texture, contact shading, and real directional-light shadows. Notes and the wall share a parent group. R3F raycasting and pointer capture project drag positions back into the wall's local space, including when the wall is rotated.
+
+Camera controls use Drei OrbitControls with damped movement, responsive framing, bounded pan, orbit and zoom, and animated toolbar actions. The bounds follow the tilted wall and keep the center of the view on its front face. Select, pan, and orbit are explicit modes. Adding a second touch cancels an in-progress note move and hands the gesture to the camera. A completed note move commits one history entry.
+
+For a local comparison, append `?noteRendering=paper-ink` to the wall URL. The prototype uses one shared paper-finish texture and shares full-resolution ink masks across notes with the same writing and doodle, even when their colors differ. Remove the parameter to use the default baked renderer. If the prototype fails to load or its shader fails to link, the wall falls back to baked notes.
+
+## Current limits
+
+- Local storage only; no cross-device sync or collaboration. Clearing browser data removes saved work.
+- 60 notes and 50 undo steps per session. Undo history is not persisted.
+- Note titles are limited to 72 characters and bodies to 240. The paper view may abbreviate long text; the editor retains it in full.
+- Handwriting uses installed system fonts (`Noteworthy`, `Segoe Print`, `Bradley Hand`, `Comic Sans MS`, then cursive), so its appearance varies by platform. The UI font is self-hosted.
+- Fresh walls start with seven sample tasks and a dismissible welcome. The starter arrangement fits around the controls. On mobile, zoom in to read small text. Existing saved walls keep their notes and positions.
+- Wall rotation is bounded to ±25° tilt and ±30° turn, applied through its dedicated controls. Reset camera returns to the initial framing.
+- WebGL and hardware acceleration are required. Shading and performance depend on the device; pixel density is capped and textures are generated locally.
+
+No backend, authentication, Kanban columns, sidebar, or future product features are included.
+
+## Milestone verification
+
+`npm run typecheck`, `npm test`, and `npm run build` passed. Node tests exercise the pan bounds at desktop and mobile aspect ratios, overlapping paper raycasts, synthetic touch gestures, and a 60-note workload. Vite reports a size warning for the Three.js vendor chunk, which loads with the lazy 3D scene.
+
+The development server was attempted in the build environment, but local port binding was blocked (`listen EPERM` on 127.0.0.1:5173). A headless browser launch was also blocked, so rendered appearance and live gestures still need verification in an unrestricted local browser. Run `npm run dev` to perform that check.
+# wallflow

@@ -1,6 +1,6 @@
 # WALLFLOW
 
-A personal, physical-feeling wall for ideas and reminders. Frontend milestone 1: a genuine 3D plaster wall, tactile paper notes, and a minimal HTML interface.
+A personal wall for ideas and reminders, with tactile paper notes on a 3D plaster wall.
 
 ## Run locally
 
@@ -29,9 +29,16 @@ npm run preview
 - **Orbit (O):** drag to move the camera around the wall.
 - **Zoom:** scroll, pinch with two fingers, or use the toolbar. **0** resets the camera.
 - **Rotate wall:** adjust tilt and turn, then apply. This transforms the wall and all its children independently of the camera. Straighten resets only the wall.
-- **Add (N):** write a note and choose its color. Selecting a toolbar swatch recolors the selected note or sets the next note's color.
+- **Add (N):** start typing on a new note near the center of the view. Text saves as you type. Enter, Cmd/Ctrl+Enter, Done, or clicking outside finishes editing. Shift+Enter adds a line break. Escape removes an empty new note.
+- **Selected note:** use the contextual tools to edit, recolor, rotate, resize, duplicate, or delete. Drag a corner to resize proportionally, or use the size buttons. Cmd/Ctrl+D duplicates the selected note.
+- **Task details:** open this section in the inline note editor to write and reorder a checklist, set a priority or due date, and mark the note complete. The selected note's task menu also lets you reopen or archive it.
+- **Today and daily plan:** open the calendar button in the header. Today shows due, overdue, and planned work and notes with reminders set for today. Check off items directly or jump back to their notes on the wall. Choose **Plan my day** to select whole notes or individual checklist items without changing their due dates. Planned notes and planned checklist items count separately toward the daily progress shown in the panel and on the calendar button.
+- **Reminders:** set a date and time in a note’s **Task details**. The **Reminders** tab shows upcoming and overdue alerts for open notes. Use **Enable notifications** there to grant browser permission. Alerts require an open WALLFLOW tab. A missed, unsent reminder can be delivered when you reopen WALLFLOW, and a reminder sent by this tab stays recorded after refresh.
+- **Deadlines and archive:** choose **Deadlines** for all active due dates. Open **Archive** to restore a note to its old position or confirm permanent deletion. You can undo archive and restore. Permanent deletion removes the note from undo history.
 - **Undo / redo:** toolbar, Cmd/Ctrl+Z, Cmd/Ctrl+Shift+Z, or Ctrl+Y. A drag is a single history entry.
-- **Search:** the search button or Cmd/Ctrl+K. Select a result to bring it into view.
+- **Search and filters:** open the search button or press Cmd/Ctrl+K. Search titles, descriptions, and checklists. Combine priority, completion, due date, section, and archive filters. Select an active result to focus it or an archived result to open it in Archive. Clear filters from the search panel or the wall footer.
+- **Sections:** open **Sections** in search to create, rename, delete, or focus a section. Drag its label in Select mode or use the arrow buttons in the section editor. A dropped note joins the section under its center. Use **Note options** to assign a section without moving the note. Deleting a section leaves its notes on the wall.
+- **Focus:** select a note and press **F** or choose **Focus note** from **Note options**. Select a section name in the directory to focus it. **0** or the reset button restores the home view.
 - **Settings:** wall name, daylight / warm lighting, and interaction hints.
 - **Help:** the bottom-right button or **?**.
 
@@ -63,14 +70,19 @@ The wall is a thick Three.js box with a matte, procedurally textured material. E
 
 Camera controls use Drei OrbitControls with damped movement, responsive framing, bounded pan, orbit and zoom, and animated toolbar actions. The bounds follow the tilted wall and keep the center of the view on its front face. Select, pan, and orbit are explicit modes. Adding a second touch cancels an in-progress note move and hands the gesture to the camera. A completed note move commits one history entry.
 
+The scene draws on demand. Camera, wall and paper motion schedule frames until they settle. Editing, resizing, texture changes and graphics-context recovery request a draw when needed. Reduced motion disables camera easing and wall rotation animation.
+
 For a local comparison, append `?noteRendering=paper-ink` to the wall URL. The prototype uses one shared paper-finish texture and shares full-resolution ink masks across notes with the same writing and doodle, even when their colors differ. Remove the parameter to use the default baked renderer. If the prototype fails to load or its shader fails to link, the wall falls back to baked notes.
 
 ## Current limits
 
 - Local storage only; no cross-device sync or collaboration. Clearing browser data removes saved work.
-- 60 notes and 50 undo steps per session. Undo history is not persisted.
+- 60 active notes and 50 undo steps per session. Archived notes take no space on the active wall. Undo history is not persisted.
+- Up to 24 freely positioned sections. Filters are kept for the current session.
+- One reminder per note and one planned day per note or checklist item. Plans follow the local calendar day. Reminders keep their original instant and display in the current time zone.
+- Checklists support up to 24 items. The paper previews the first three and shows progress for the whole checklist.
 - Note titles are limited to 72 characters and bodies to 240. The paper view may abbreviate long text; the editor retains it in full.
-- Handwriting uses installed system fonts (`Noteworthy`, `Segoe Print`, `Bradley Hand`, `Comic Sans MS`, then cursive), so its appearance varies by platform. The UI font is self-hosted.
+- Note titles use an installed handwriting face when available. Descriptions, checklists, and the interface use self-hosted DM Sans.
 - Fresh walls start with seven sample tasks and a dismissible welcome. The starter arrangement fits around the controls. On mobile, zoom in to read small text. Existing saved walls keep their notes and positions.
 - Wall rotation is bounded to ±25° tilt and ±30° turn, applied through its dedicated controls. Reset camera returns to the initial framing.
 - WebGL and hardware acceleration are required. Shading and performance depend on the device; pixel density is capped and textures are generated locally.
@@ -79,7 +91,7 @@ No backend, authentication, Kanban columns, sidebar, or future product features 
 
 ## Milestone verification
 
-`npm run typecheck`, `npm test`, and `npm run build` passed. Node tests exercise the pan bounds at desktop and mobile aspect ratios, overlapping paper raycasts, synthetic touch gestures, and a 60-note workload. Vite reports a size warning for the Three.js vendor chunk, which loads with the lazy 3D scene.
+`npm run typecheck`, `npm test`, and `npm run build` passed. Node tests exercise camera bounds at desktop and mobile aspect ratios, overlapping paper raycasts, synthetic touch input, and a 60-note workload. The lazy Three.js vendor chunk is 733 kB minified and 188 kB gzipped. Splitting Three.js core and WebGL into separate chunks or building from modular sources increased the combined gzip size in trial builds.
 
 The development server was attempted in the build environment, but local port binding was blocked (`listen EPERM` on 127.0.0.1:5173). A headless browser launch was also blocked, so rendered appearance and live gestures still need verification in an unrestricted local browser. Run `npm run dev` to perform that check.
 # wallflow

@@ -8,10 +8,12 @@ import type { EnvironmentTheme } from '../../types/wall'
 import { THEME_PRESETS, wallFinish } from '../../utils/appearance'
 import { WALL_HEIGHT, WALL_WIDTH } from '../../utils/constants'
 import { createStudyPlasterBox, STUDY_BOARD_THICKNESS, STUDY_PLASTER_RELIEF } from '../../three/environments/studyRoomMaterials'
+import { OFFICE_BOARD_THICKNESS, OFFICE_FRAME_WIDTH } from '../../three/environments/officeWhiteboardLayout'
 
 type Trim = { x: number; y: number; width: number; height: number }
 const TRIM: Record<EnvironmentTheme, Trim[]> = {
   minimal: [],
+  office: [],
   study: [
     { x: 0, y: 5.06, width: 31.5, height: 0.14 },
     { x: 0, y: 5.17, width: 31.5, height: 0.047 },
@@ -28,6 +30,30 @@ const TRIM: Record<EnvironmentTheme, Trim[]> = {
   ],
 }
 const skipRaycast = () => null
+
+const officeFrame = [
+  ...[-1, 1].map((side) => ({
+    x: side * (WALL_WIDTH + OFFICE_FRAME_WIDTH) / 2, y: 0, width: OFFICE_FRAME_WIDTH, height: WALL_HEIGHT,
+  })),
+  ...[-1, 1].map((side) => ({
+    x: 0, y: side * (WALL_HEIGHT + OFFICE_FRAME_WIDTH) / 2, width: WALL_WIDTH + 2 * OFFICE_FRAME_WIDTH, height: OFFICE_FRAME_WIDTH,
+  })),
+]
+
+function OfficeBoardFrame() {
+  const geometry = useMemo(() => new BoxGeometry(1, 1, 1), [])
+  const material = useMemo(() => new MeshStandardMaterial({
+    color: THEME_PRESETS.office.trim ?? '#515452', roughness: 0.37, metalness: 0.52,
+  }), [])
+  useEffect(() => () => { geometry.dispose(); material.dispose() }, [geometry, material])
+  return <group name="whiteboard aluminum frame">
+    {officeFrame.map(({ x, y, width, height }) =>
+      <mesh key={`${x},${y}`} geometry={geometry} material={material} position={[x, y, -OFFICE_BOARD_THICKNESS / 2]}
+        scale={[width, height, OFFICE_BOARD_THICKNESS]} raycast={skipRaycast} receiveShadow />)}
+    <mesh geometry={geometry} material={material} position={[0, -WALL_HEIGHT / 2 - OFFICE_FRAME_WIDTH - 0.09, 0.035]}
+      scale={[WALL_WIDTH + 0.52, 0.12, 0.38]} raycast={skipRaycast} receiveShadow />
+  </group>
+}
 
 function WallTrim({ theme }: { theme: EnvironmentTheme }) {
   const invalidate = useThree((state) => state.invalidate)
@@ -66,22 +92,23 @@ function LegacyWallAccents({ theme, finish }: { theme: EnvironmentTheme; finish:
 export const WallSurface = memo(function WallSurface({ studyPlaster }: { studyPlaster: Texture | null }) {
   const appearance = useWallStore((s) => s.appearance)
   const finish = wallFinish(appearance)
-  const thickness = studyPlaster ? STUDY_BOARD_THICKNESS : 0.38
+  const office = appearance.theme === 'office'
+  const thickness = office ? OFFICE_BOARD_THICKNESS : studyPlaster ? STUDY_BOARD_THICKNESS : 0.38
   const geometry = useMemo(() => studyPlaster
     ? createStudyPlasterBox(WALL_WIDTH, WALL_HEIGHT, thickness)
     : new BoxGeometry(WALL_WIDTH, WALL_HEIGHT, thickness), [studyPlaster, thickness])
-  const legacyBump = useMemo(() => studyPlaster ? null : createPlasterTexture(), [studyPlaster])
+  const legacyBump = useMemo(() => studyPlaster || office ? null : createPlasterTexture(), [studyPlaster, office])
   useEffect(() => () => { geometry.dispose(); legacyBump?.dispose() }, [geometry, legacyBump])
 
   return <>
-    <mesh receiveShadow castShadow={studyPlaster !== null} geometry={geometry} position={[0, 0, -thickness / 2]} name="solid-plaster-wall"
+    <mesh receiveShadow castShadow={studyPlaster !== null || office} geometry={geometry} position={[0, 0, -thickness / 2]} name={office ? 'office-whiteboard' : 'solid-plaster-wall'}
       onPointerDown={(event) => event.stopPropagation()}
       onPointerOver={(event) => event.stopPropagation()}
       onDoubleClick={(event) => event.stopPropagation()}
       onClick={(event) => { event.stopPropagation(); useWallStore.getState().select(null) }}>
-      <meshStandardMaterial color={finish.color} roughness={0.98} map={studyPlaster} bumpMap={studyPlaster ?? legacyBump}
+      <meshStandardMaterial color={finish.color} roughness={office ? 0.47 : 0.98} map={studyPlaster} bumpMap={studyPlaster ?? legacyBump}
         bumpScale={studyPlaster ? STUDY_PLASTER_RELIEF : 0.013} />
     </mesh>
-    {!studyPlaster && <LegacyWallAccents theme={appearance.theme} finish={finish} />}
+    {office ? <OfficeBoardFrame /> : !studyPlaster && <LegacyWallAccents theme={appearance.theme} finish={finish} />}
   </>
 })

@@ -1,6 +1,6 @@
 import {
   BoxGeometry, Color, CylinderGeometry, DoubleSide, Float32BufferAttribute, Group, InstancedMesh,
-  Mesh, MeshBasicMaterial, MeshPhysicalMaterial, MeshStandardMaterial, Object3D, PlaneGeometry,
+  Mesh, MeshBasicMaterial, MeshDepthMaterial, MeshPhysicalMaterial, MeshStandardMaterial, Object3D, PlaneGeometry,
   TorusGeometry,
 } from 'three'
 import type { BufferGeometry, Material, Plane, Texture } from 'three'
@@ -11,6 +11,8 @@ import {
   createOakGrain, createOvercastGlass, createStudyFabric, createStudyPlasterBox, STUDY_PLASTER_RELIEF, STUDY_WALL_FACE,
 } from './studyRoomMaterials.ts'
 import { globeSurface, plantLeaves, pottery } from './studyRoomProps.ts'
+import { buildStudyDeskSculpture } from './studyDeskSculpture.ts'
+import { addPlantWind, animateFoliage, animateWindowView } from './environmentWind.ts'
 
 type Coordinates = [number, number, number]
 type Box = { center: Coordinates; size: Coordinates; turn?: number; tint?: string }
@@ -43,6 +45,8 @@ export function buildStudyRoom(planes: Plane[], plasterTexture: Texture) {
   const reveal = new MeshStandardMaterial({ ...finish, color: '#d6d1c5', roughness: 0.86 })
   const sash = new MeshStandardMaterial({ ...finish, color: '#a9a9a1', metalness: 0.29, roughness: 0.52 })
   const outside = new MeshBasicMaterial({ ...finish, map: glassGradient, toneMapped: false })
+  const motionTime = { value: 0 }
+  animateWindowView(outside, motionTime, { canopy: [0.46, 0.71], cloudAmount: 0 })
   const glass = new MeshPhysicalMaterial({ ...finish, color: '#eaf5fb', roughness: 0.15, clearcoat: 0.68,
     transparent: true, depthWrite: false, opacity: 0.13 })
   const oak = new MeshStandardMaterial({ ...finish, map: oakGrain, vertexColors: true, roughness: 0.73 })
@@ -55,12 +59,15 @@ export function buildStudyRoom(planes: Plane[], plasterTexture: Texture) {
   const terracotta = new MeshStandardMaterial({ ...finish, color: '#957357', roughness: 0.77 })
   const soil = new MeshStandardMaterial({ ...finish, color: '#524336', roughness: 1 })
   const foliage = new MeshStandardMaterial({ ...finish, vertexColors: true, side: DoubleSide, roughness: 0.69 })
+  const foliageDepth = new MeshDepthMaterial()
+  animateFoliage(foliage, motionTime)
+  animateFoliage(foliageDepth, motionTime)
   const brass = new MeshStandardMaterial({ ...finish, color: '#92714c', metalness: 0.42, roughness: 0.63 })
   const globe = new MeshStandardMaterial({ ...finish, vertexColors: true, roughness: 0.84 })
   const wool = new MeshStandardMaterial({ ...finish, color: '#bead96', map: fabric, roughness: 1 })
   const materials = [
     plaster, bouncedPlaster, trim, reveal, sash, outside, glass, oak, hardware, floor, seam,
-    linen, bookPaper, ceramic, terracotta, soil, foliage, brass, globe, wool,
+    linen, bookPaper, ceramic, terracotta, soil, foliage, foliageDepth, brass, globe, wool,
   ]
   const placement = new Object3D()
 
@@ -259,10 +266,13 @@ export function buildStudyRoom(planes: Plane[], plasterTexture: Texture) {
   join('planters', terracotta, [planter(sillPlant), planter(shelfPlant)], true)
   join('potting soil', soil, [sillPlant, shelfPlant].map(([x, y, z]) =>
     new CylinderGeometry(0.633, 0.63, 0.065, 20).translate(x, y + 0.96, z)))
-  join('pothos on the sill and bookshelf', foliage, [
-    plantLeaves([sillPlant[0], sillPlant[1] + 0.95, sillPlant[2]], 1.02),
-    plantLeaves([shelfPlant[0], shelfPlant[1] + 0.95, shelfPlant[2]], 1.16),
+  const sillRoot: Coordinates = [sillPlant[0], sillPlant[1] + 0.95, sillPlant[2]]
+  const shelfRoot: Coordinates = [shelfPlant[0], shelfPlant[1] + 0.95, shelfPlant[2]]
+  const plants = join('pothos on the sill and bookshelf', foliage, [
+    addPlantWind(plantLeaves(sillRoot, 1.02), sillRoot, 0.058, 3.1, 0.74),
+    addPlantWind(plantLeaves(shelfRoot, 1.16), shelfRoot, 0.035, 3.5, 3.9),
   ], true)
+  plants.customDepthMaterial = foliageDepth
 
   const cupX = -7.9
   join('stoneware pencil cup and small shelf bowl', ceramic, [
@@ -284,6 +294,9 @@ export function buildStudyRoom(planes: Plane[], plasterTexture: Texture) {
     new TorusGeometry(0.96, 0.036, 7, 32).rotateY(0.2).rotateZ(-0.35).translate(globeX, globeY, globeZ),
   ])
 
+  const deskSculpture = buildStudyDeskSculpture(planes)
+  room.add(deskSculpture.sculpture)
+
   return {
     room,
     plaster,
@@ -292,10 +305,15 @@ export function buildStudyRoom(planes: Plane[], plasterTexture: Texture) {
     glassGradient,
     roomReturns,
     compactWall,
+    updateMotion(seconds: number) {
+      motionTime.value = seconds
+      deskSculpture.update(seconds)
+    },
     dispose() {
       room.children.forEach((child) => { if (child instanceof InstancedMesh) child.dispose() })
       geometries.forEach((part) => part.dispose())
       materials.forEach((material) => material.dispose())
+      deskSculpture.dispose()
       oakGrain.dispose()
       glassGradient.dispose()
       fabric.dispose()

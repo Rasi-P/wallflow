@@ -1,17 +1,19 @@
-import { memo, useEffect, useLayoutEffect, useMemo } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo } from 'react'
 import type { RefObject } from 'react'
 import { useThree } from '@react-three/fiber'
 import { SRGBColorSpace, TextureLoader, Vector3 } from 'three'
-import type { Group, Texture } from 'three'
+import type { DirectionalLight, Group, SpotLight, Texture } from 'three'
 import { useWallStore } from '../../stores/wallStore'
 import { wallFinish } from '../../utils/appearance'
-import { createBoardCutaway, studyRoomFrame } from './studyRoomLayout'
+import { createBoardCutaway, studyDaylightPositions, studyRoomFrame } from './studyRoomLayout'
 import { buildStudyRoom } from './studyRoomModel'
+import { useEnvironmentMotion } from './useEnvironmentMotion'
 
 const outsideUrl = `${import.meta.env.BASE_URL}environments/personal-study-outside.jpg`
 
-export const PersonalStudyRoom = memo(function PersonalStudyRoom({ board, plasterTexture }: {
-  board: RefObject<Group | null>; plasterTexture: Texture
+export const PersonalStudyRoom = memo(function PersonalStudyRoom({ board, plasterTexture, sun, windowLight, reducedMotion }: {
+  board: RefObject<Group | null>; plasterTexture: Texture; sun: RefObject<DirectionalLight | null>;
+  windowLight: RefObject<SpotLight | null>; reducedMotion: boolean
 }) {
   const scene = useThree((state) => state.scene)
   const gl = useThree((state) => state.gl)
@@ -20,6 +22,15 @@ export const PersonalStudyRoom = memo(function PersonalStudyRoom({ board, plaste
   const cutaway = useMemo(createBoardCutaway, [])
   const model = useMemo(() => buildStudyRoom(cutaway.planes, plasterTexture), [cutaway, plasterTexture])
   const plasterColor = useWallStore((state) => wallFinish(state.appearance).color)
+  const updateMotion = useCallback((seconds: number, refreshShadows: boolean) => {
+    model.updateMotion(seconds)
+    if (refreshShadows) {
+      const positions = studyDaylightPositions(seconds)
+      sun.current?.position.set(...positions.sun)
+      windowLight.current?.target.position.set(...positions.windowTarget)
+    }
+  }, [model, sun, windowLight])
+  useEnvironmentMotion('study', reducedMotion, updateMotion)
 
   useLayoutEffect(() => {
     model.roomReturns.visible = overview

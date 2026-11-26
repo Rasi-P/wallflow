@@ -28,7 +28,7 @@ test('selecting each environment persists the theme and appearance overrides', (
   }
   assert.equal(new Set(Object.keys(THEME_PRESETS).map((theme) => wallFinish({
     ...DEFAULT_APPEARANCE, theme: theme as EnvironmentTheme,
-  }).color)).size, 4)
+  }).color)).size, Object.keys(THEME_PRESETS).length)
   assert.equal(environmentLighting(DEFAULT_APPEARANCE, 'daylight').key, 2.35)
   assert.equal(environmentLighting(DEFAULT_APPEARANCE, 'warm').background, '#eee6da')
   assert.equal(environmentLighting({ ...DEFAULT_APPEARANCE, theme: 'lab' }, 'daylight').keyColor, '#f2f8ff')

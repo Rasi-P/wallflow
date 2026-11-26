@@ -8,6 +8,7 @@ import { clampPosition, useWallStore } from '../../stores/wallStore'
 import type { BindNoteSurface } from '../../three/noteSurface'
 import { NOTE_HEIGHT, NOTE_WIDTH } from '../../utils/constants'
 import { getNoteSize } from '../../utils/noteDimensions'
+import { isSketchId } from '../../utils/sketches'
 import { NOTE_CONTACT_DEPTH } from '../../three/noteLayers'
 import { CONTACT_SHADOW_OPACITY, getPickupLift, stepPaperLift } from '../../three/paperMotion'
 import type { PaperMotionFrame } from '../../three/paperMotion'
@@ -55,7 +56,8 @@ export const StickyNote = memo(function StickyNote({ note, visible, depth, paper
   const selected = useWallStore((s) => s.selectedId === note.id)
   const editing = useWallStore((s) => s.editingId === note.id)
   const size = getNoteSize(note)
-  const { title, body, color, doodle, typography, checklist, priority, dueDate, completed } = note
+  const { title, body, color, doodle, typography, inlineSketches, checklist, priority, dueDate, completed } = note
+  const sketchAspect = isSketchId(doodle) || inlineSketches ? size[0] / size[1] : undefined
   const today = useWallStore((state) => dueDate ? state.today : '')
   const task = useMemo(() => getTaskInk({ checklist, priority, dueDate, completed }, today), [checklist, priority, dueDate, completed, today])
   useLayoutEffect(() => {
@@ -65,9 +67,9 @@ export const StickyNote = memo(function StickyNote({ note, visible, depth, paper
     return () => { surface.current = null; binding.dispose() }
   }, [bindSurface])
   useLayoutEffect(() => {
-    surface.current?.update({ title, body, color, doodle, task, typography })
+    surface.current?.update({ title, body, color, doodle, inlineSketches, sketchAspect, task, typography })
     invalidate()
-  }, [bindSurface, title, body, color, doodle, task, typography, invalidate])
+  }, [bindSurface, title, body, color, doodle, inlineSketches, sketchAspect, task, typography, invalidate])
 
   const frame = useCallback<PaperMotionFrame>((delta) => {
     const sheet = paper.current

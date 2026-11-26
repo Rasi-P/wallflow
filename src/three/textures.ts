@@ -3,6 +3,9 @@ import type { StickyNoteData } from '../types/wall.ts'
 import { NOTE_COLORS } from '../utils/constants.ts'
 import type { TaskInk } from '../utils/noteTasks.ts'
 import { NOTE_BODY_FONT, NOTE_TITLE_FONTS } from '../utils/appearance.ts'
+import { inlineNoteParts, noteGraphemes, sketchMarker } from '../utils/noteText.ts'
+import { isSketchId, SKETCHES, SKETCH_DETAIL_WIDTH, SKETCH_OUTLINE_WIDTH } from '../utils/sketches.ts'
+import type { SketchId } from '../utils/sketches.ts'
 
 function canvas(size: number) {
   const element = document.createElement('canvas')
@@ -52,20 +55,77 @@ export function createPlasterTexture() {
   return texture
 }
 
-function wrap(context: CanvasRenderingContext2D, text: string, maxWidth: number) {
+const sketchPaths = new Map<SketchId, readonly [Path2D, Path2D]>()
+
+function sketchSize(size: number, aspect: number) {
+  return { width: size * Math.min(1, 1 / aspect), height: size * Math.min(1, aspect) }
+}
+
+function paintSketch(ctx: CanvasRenderingContext2D, id: SketchId, x: number, y: number, width: number, height: number) {
+  let paths = sketchPaths.get(id)
+  if (!paths) {
+    paths = [new Path2D(SKETCHES[id].outline), new Path2D(SKETCHES[id].detail)]
+    sketchPaths.set(id, paths)
+  }
+  ctx.save()
+  ctx.translate(x, y)
+  ctx.scale(width / 64, height / 64)
+  ctx.globalAlpha = 0.82
+  ctx.lineWidth = SKETCH_OUTLINE_WIDTH
+  ctx.stroke(paths[0])
+  ctx.globalAlpha = 0.66
+  ctx.lineWidth = SKETCH_DETAIL_WIDTH
+  ctx.stroke(paths[1])
+  ctx.translate(0.66, -0.4)
+  ctx.globalAlpha = 0.19
+  ctx.lineWidth = 0.81
+  ctx.stroke(paths[0])
+  ctx.restore()
+}
+
+function lineWriter(ctx: CanvasRenderingContext2D, fontSize: number, inline?: true, aspect = 1) {
+  const { width, height } = sketchSize(fontSize * 0.94, aspect)
+  const advance = width + fontSize * 0.17
+  const measure = (text: string) => inline && text.includes('[[sketch:')
+    ? inlineNoteParts(text).reduce((sum, part) => sum + (typeof part === 'string' ? ctx.measureText(part).width : advance), 0)
+    : ctx.measureText(text).width
+  return {
+    measure,
+    units: (text: string) => inline && text.includes('[[sketch:')
+      ? inlineNoteParts(text).flatMap((part) => typeof part === 'string' ? noteGraphemes(part) : [sketchMarker(part.sketch)])
+      : noteGraphemes(text),
+    fill(text: string, x: number, y: number, maxWidth: number) {
+      if (!inline || !text.includes('[[sketch:')) {
+        ctx.fillText(text, x, y, maxWidth)
+        return
+      }
+      for (const part of inlineNoteParts(text)) {
+        if (typeof part === 'string') {
+          ctx.fillText(part, x, y)
+          x += ctx.measureText(part).width
+        } else {
+          paintSketch(ctx, part.sketch, x + (advance - width) / 2, y - height * 0.84, width, height)
+          x += advance
+        }
+      }
+    },
+  }
+}
+
+function wrap(writer: ReturnType<typeof lineWriter>, text: string, maxWidth: number) {
   const lines: string[] = []
   for (const paragraph of text.split('\n')) {
     let line = ''
     for (const word of paragraph.split(' ')) {
       const candidate = line ? `${line} ${word}` : word
-      if (context.measureText(candidate).width > maxWidth && line) { lines.push(line); line = word }
+      if (writer.measure(candidate) > maxWidth && line) { lines.push(line); line = word }
       else line = candidate
       // Split long unbroken words so user text stays on the paper.
-      while (context.measureText(line).width > maxWidth) {
-        const characters = Array.from(line)
+      while (writer.measure(line) > maxWidth) {
+        const characters = writer.units(line)
         if (characters.length <= 1) break
         let end = characters.length - 1
-        while (end > 1 && context.measureText(characters.slice(0, end).join('')).width > maxWidth) end--
+        while (end > 1 && writer.measure(characters.slice(0, end).join('')) > maxWidth) end--
         lines.push(characters.slice(0, end).join(''))
         line = characters.slice(end).join('')
       }
@@ -75,16 +135,18 @@ function wrap(context: CanvasRenderingContext2D, text: string, maxWidth: number)
   return lines
 }
 
-function ellipsize(context: CanvasRenderingContext2D, line: string, width: number) {
-  const characters = Array.from(line.trimEnd())
-  while (characters.length && context.measureText(`${characters.join('')}…`).width > width) characters.pop()
+function ellipsize(writer: ReturnType<typeof lineWriter>, line: string, width: number) {
+  const characters = writer.units(line.trimEnd())
+  while (characters.length && writer.measure(`${characters.join('')}…`) > width) characters.pop()
   return `${characters.join('')}…`
 }
 
 export const NOTE_TEXTURE_SIZE = 1024
 export const DEFAULT_NOTE_TITLE = 'A fresh little thought.'
 export const DEFAULT_NOTE_BODY = 'Double-click to make it yours.'
-export type NoteInk = Pick<StickyNoteData, 'title' | 'body' | 'doodle' | 'typography'> & { task?: TaskInk }
+export type NoteInk = Pick<StickyNoteData, 'title' | 'body' | 'doodle' | 'typography' | 'inlineSketches'> & {
+  task?: TaskInk; sketchAspect?: number
+}
 export type NoteArtwork = NoteInk & Pick<StickyNoteData, 'color'>
 let paperFinish: HTMLCanvasElement | undefined
 
@@ -122,39 +184,52 @@ export function paintNoteInk(ctx: CanvasRenderingContext2D, note: NoteInk, ink: 
   const titleFont = NOTE_TITLE_FONTS[note.typography ?? 'handwritten']
   const title = note.title || DEFAULT_NOTE_TITLE
   const width = 800
+  const corner = isSketchId(note.doodle) ? note.doodle : undefined
+  const aspect = note.sketchAspect ?? 1
   ctx.font = `700 82px ${titleFont}`
-  let titleLines = wrap(ctx, title, width)
-  if (titleLines.length > 2) { ctx.font = `700 70px ${titleFont}`; titleLines = wrap(ctx, title, width) }
+  let titleWriter = lineWriter(ctx, 82, note.inlineSketches, aspect)
+  let titleLines = wrap(titleWriter, title, width)
+  if (titleLines.length > 2) {
+    ctx.font = `700 70px ${titleFont}`
+    titleWriter = lineWriter(ctx, 70, note.inlineSketches, aspect)
+    titleLines = wrap(titleWriter, title, width)
+  }
   let y = 182
   for (const [index, line] of titleLines.slice(0, 3).entries()) {
-    ctx.fillText(index === 2 && titleLines.length > 3 ? ellipsize(ctx, line, width) : line, 108, y, width)
+    titleWriter.fill(index === 2 && titleLines.length > 3 ? ellipsize(titleWriter, line, width) : line, 108, y, width)
     y += 98
   }
   y += 38
   const body = note.body || (note.task ? '' : DEFAULT_NOTE_BODY)
   ctx.font = `450 56px ${NOTE_BODY_FONT}`
-  let bodyLines = wrap(ctx, body, width)
+  let bodyWriter = lineWriter(ctx, 56, note.inlineSketches, aspect)
+  let bodyLines = wrap(bodyWriter, body, width)
   let lineHeight = 79
-  const bodyLimit = note.task?.rows.length ? 590 : 846
+  const bodyLimit = note.task?.rows.length ? 590 : corner ? 736 : 846
   if (y + (bodyLines.length - 1) * lineHeight > bodyLimit) {
     ctx.font = `450 49px ${NOTE_BODY_FONT}`
-    bodyLines = wrap(ctx, body, width)
+    bodyWriter = lineWriter(ctx, 49, note.inlineSketches, aspect)
+    bodyLines = wrap(bodyWriter, body, width)
     lineHeight = 67
   }
   const linesThatFit = Math.max(0, 1 + Math.floor((bodyLimit - y) / lineHeight))
   for (const [index, line] of (body ? bodyLines.slice(0, linesThatFit) : []).entries()) {
-    ctx.fillText(index === linesThatFit - 1 && bodyLines.length > linesThatFit ? ellipsize(ctx, line, width) : line, 108, y, width)
+    bodyWriter.fill(index === linesThatFit - 1 && bodyLines.length > linesThatFit ? ellipsize(bodyWriter, line, width) : line, 108, y, width)
     y += lineHeight
   }
   if (note.task) {
-    if (note.doodle && !note.task.rows.length && y < 690) drawDoodle(ctx, note.doodle, 750, 730)
-    paintTaskInk(ctx, note.task, NOTE_BODY_FONT, width)
-  } else if (note.doodle && y < 770) {
+    if (note.doodle && !corner && !note.task.rows.length && y < 690) drawDoodle(ctx, note.doodle, 750, 730)
+    paintTaskInk(ctx, note.task, NOTE_BODY_FONT, width, Boolean(corner))
+  } else if (note.doodle && !corner && y < 770) {
     drawDoodle(ctx, note.doodle, 750, 805)
+  }
+  if (corner) {
+    const dimensions = sketchSize(150, aspect)
+    paintSketch(ctx, corner, 910 - dimensions.width, 914 - dimensions.height, dimensions.width, dimensions.height)
   }
 }
 
-function paintTaskInk(ctx: CanvasRenderingContext2D, task: TaskInk, font: string, width: number) {
+function paintTaskInk(ctx: CanvasRenderingContext2D, task: TaskInk, font: string, width: number, corner: boolean) {
   ctx.font = `500 47px ${font}`
   ctx.lineWidth = 4
   for (const [index, row] of task.rows.entries()) {
@@ -168,17 +243,17 @@ function paintTaskInk(ctx: CanvasRenderingContext2D, task: TaskInk, font: string
       ctx.stroke()
     }
     const text = row.text || 'Untitled item'
-    const limit = width - 52
-    ctx.fillText(ctx.measureText(text).width > limit ? ellipsize(ctx, text, limit) : text, 160, y, limit)
+    const limit = (corner && index === 2 ? 632 : width) - 52
+    ctx.fillText(ctx.measureText(text).width > limit ? ellipsize(lineWriter(ctx, 47), text, limit) : text, 160, y, limit)
   }
   const summaryY = task.due ? 886 : 927
   if (task.summary) {
     ctx.font = `600 37px ${font}`
-    ctx.fillText(task.summary, 108, summaryY, width)
+    ctx.fillText(task.summary, 108, summaryY, corner ? 632 : width)
   }
   if (task.due) {
     ctx.font = `${task.overdue ? 700 : 500} ${task.overdue ? 43 : 39}px ${font}`
-    ctx.fillText(task.due, 108, 944, width)
+    ctx.fillText(task.due, 108, 944, corner ? 632 : width)
   }
 }
 

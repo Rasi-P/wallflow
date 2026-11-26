@@ -1,3 +1,5 @@
+import type { SketchId } from '../utils/sketches.ts'
+
 export type NoteColor = 'yellow' | 'pink' | 'green' | 'blue' | 'violet'
 export type InteractionMode = 'select' | 'pan' | 'orbit'
 export type Lighting = 'daylight' | 'warm'
@@ -52,7 +54,8 @@ export interface StickyNoteData extends NoteTaskFields {
   position: Point2
   rotation: number
   size?: Point2
-  doodle?: 'spark' | 'flower' | 'leaf'
+  doodle?: 'spark' | 'flower' | 'leaf' | SketchId
+  inlineSketches?: true
   archived?: boolean
   sectionId?: string
   plannedOn?: string

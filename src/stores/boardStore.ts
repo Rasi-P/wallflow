@@ -14,6 +14,9 @@ import { DEFAULT_APPEARANCE, DEFAULT_NOTE_PREFERENCES, isNoteTypography, NOTE_SI
 import { removeUnchangedSamples, TUTORIAL_STEPS } from '../utils/onboarding.ts'
 import type { FirstWallOptions, TutorialProgress } from '../utils/onboarding.ts'
 import type { Board, BoardId } from '../types/workspace.ts'
+import { limitNoteText } from '../utils/noteText.ts'
+import { isSketchId } from '../utils/sketches.ts'
+import type { SketchId } from '../utils/sketches.ts'
 
 type NotePatch = Partial<Pick<StickyNoteData, 'title' | 'body' | 'position' | 'color' | 'size' | 'rotation'>>
 type EditSession = { kind: 'new'; past: WallDocument[]; future: WallDocument[] } | { kind: 'existing'; original: StickyNoteData }
@@ -57,7 +60,8 @@ export interface WallStore extends WallDocument {
   updateNote: (id: string, patch: NotePatch) => void
   deleteNote: (id: string) => void
   editNote: (id: string | null, showTaskDetails?: boolean) => void
-  writeNoteText: (id: string, text: Partial<Pick<StickyNoteData, 'title' | 'body'>>) => void
+  writeNoteText: (id: string, text: Partial<Pick<StickyNoteData, 'title' | 'body' | 'inlineSketches'>>) => void
+  setNoteDoodle: (id: string, doodle?: SketchId) => void
   finishEditing: (cancelEmpty?: boolean) => void
   duplicateNote: (id: string) => void
   updateTask: (id: string, patch: TaskPatch) => void
@@ -216,13 +220,14 @@ function restoreNotes(saved: unknown[], sections: WallSection[]): StickyNoteData
     if (typeof rotation !== 'number' || !Number.isFinite(rotation)) continue
 
     const note: StickyNoteData = {
-      id, title: title.slice(0, MAX_TITLE_LENGTH), body: body.slice(0, MAX_BODY_LENGTH),
+      id, title: limitNoteText(title, MAX_TITLE_LENGTH), body: limitNoteText(body, MAX_BODY_LENGTH),
       color: color as NoteColor, position, rotation,
     }
     if (isPoint(entry.size) && entry.size.every((dimension) => dimension > 0)) note.size = normalizeNoteSize(entry.size)
     if (isNoteTypography(entry.typography)) note.typography = entry.typography
     note.position = clampPosition(position, note.size, rotation)
-    if (doodle === 'spark' || doodle === 'flower' || doodle === 'leaf') note.doodle = doodle
+    if (doodle === 'spark' || doodle === 'flower' || doodle === 'leaf' || isSketchId(doodle)) note.doodle = doodle
+    if (entry.inlineSketches === true) note.inlineSketches = true
     restoreTaskFields(note, entry)
     if (typeof entry.sectionId === 'string' && sectionIds.has(entry.sectionId)) note.sectionId = entry.sectionId
     if (!note.archived && active >= MAX_NOTES) continue
@@ -344,8 +349,22 @@ export function createBoardStore({ board, blank = false, visibleSlots = () => []
     writeNoteText: (id, text) => {
       if (get().editingId !== id) return
       set((state) => ({ notes: state.notes.map((note) => note.id !== id ? note : {
-        ...note, title: text.title?.slice(0, MAX_TITLE_LENGTH) ?? note.title, body: text.body?.slice(0, MAX_BODY_LENGTH) ?? note.body,
+        ...note,
+        title: text.title === undefined ? note.title : limitNoteText(text.title, MAX_TITLE_LENGTH),
+        body: text.body === undefined ? note.body : limitNoteText(text.body, MAX_BODY_LENGTH),
+        ...(text.inlineSketches === true ? { inlineSketches: true as const } : {}),
       }) }))
+    },
+    setNoteDoodle: (id, doodle) => {
+      if (get().editingId !== id || (doodle !== undefined && !isSketchId(doodle))) return
+      set((state) => {
+        const note = state.notes.find((entry) => entry.id === id)
+        if (!note || note.doodle === doodle) return state
+        const next = { ...note }
+        if (doodle) next.doodle = doodle
+        else delete next.doodle
+        return { notes: replaceNote(state.notes, next) }
+      })
     },
     finishEditing: (cancelEmpty = false) => {
       const state = get()
@@ -354,7 +373,7 @@ export function createBoardStore({ board, blank = false, visibleSlots = () => []
       const note = state.notes.find((entry) => entry.id === editingId)
       const selectedId = note?.id === state.selectedId && !matchesFilters(note, state.filters, state.today) ? null : state.selectedId
       const end = { editingId: null, editSession: null, showTaskDetails: false, selectedId }
-      if (note && editSession?.kind === 'new' && cancelEmpty && !note.title.trim() && !note.body.trim() && !hasTaskDetails(note) && !note.reminder && !note.plannedOn) {
+      if (note && editSession?.kind === 'new' && cancelEmpty && !note.title.trim() && !note.body.trim() && !hasTaskDetails(note) && !note.reminder && !note.plannedOn && !note.doodle) {
         set({ ...end, notes: state.notes.filter((entry) => entry.id !== editingId), selectedId: null, past: editSession.past, future: editSession.future })
         return
       }

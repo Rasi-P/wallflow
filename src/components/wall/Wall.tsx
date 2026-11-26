@@ -9,7 +9,7 @@ import { createPaperGeometry, PAPER_SHAPE_COUNT, paperShapeForId } from '../../t
 import { noteLayerDepth } from '../../three/noteLayers'
 import { CONTACT_SHADOW_OPACITY } from '../../three/paperMotion'
 import type { PaperMotionFrame } from '../../three/paperMotion'
-import { createBakedNoteSurface } from '../../three/noteSurface'
+import { createBakedNoteSurface, keepColorEmoji } from '../../three/noteSurface'
 import type { BindNoteSurface } from '../../three/noteSurface'
 import { NOTE_HEIGHT, NOTE_WIDTH } from '../../utils/constants'
 import { StickyNote } from '../sticky-note/StickyNote'
@@ -49,6 +49,7 @@ export function Wall({ group, prototypeSurface, reducedMotion = false, studyPlas
   const targetTilt = MathUtils.degToRad(rotation[0])
   const targetTurn = MathUtils.degToRad(rotation[1])
   const bakedSurface = useMemo(createBakedNoteSurface, [])
+  const bindSurface = useMemo(() => keepColorEmoji(prototypeSurface, bakedSurface), [prototypeSurface, bakedSurface])
   const paperShapes = useMemo(() => Array.from({ length: PAPER_SHAPE_COUNT }, (_, index) => createPaperGeometry(index)), [])
   const sectionGeometry = useMemo(() => new PlaneGeometry(SECTION_WIDTH, SECTION_HEIGHT), [])
   const paperMotions = useMemo(() => new Set<PaperMotionFrame>(), [])
@@ -93,7 +94,7 @@ export function Wall({ group, prototypeSurface, reducedMotion = false, studyPlas
       <WallSurface studyPlaster={studyPlaster} />
       {sections.map((section) => <SectionMarker key={section.id} section={section} geometry={sectionGeometry} />)}
       {notes.map((note, index) => <StickyNote key={note.id} note={note} visible={visibleIds.has(note.id)} depth={noteLayerDepth(index)} paperGeometry={paperShapes[paperShapeForId(note.id)]}
-        contactGeometry={contactGeometry} contactMaterial={contactMaterial} paperMotions={paperMotions} bindSurface={prototypeSurface ?? bakedSurface} />)}
+        contactGeometry={contactGeometry} contactMaterial={contactMaterial} paperMotions={paperMotions} bindSurface={bindSurface} />)}
     </group>
   )
 }

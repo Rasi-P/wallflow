@@ -10,7 +10,8 @@ export const AMBIENCE_OPTIONS: Record<EnvironmentAmbience, string> = {
 }
 
 export const NOTE_SIZE_SCALES: Record<NewNoteSize, number> = { compact: 0.78, standard: 1, large: 1.3 }
-export const NOTE_BODY_FONT = '"DM Sans", sans-serif'
+export const EMOJI_FONTS = '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Twemoji Mozilla"'
+export const NOTE_BODY_FONT = `"DM Sans", ${EMOJI_FONTS}, sans-serif`
 export const NOTE_TITLE_FONTS: Record<NoteTypography, string> = {
   handwritten: `"Noteworthy", "Segoe Print", "Bradley Hand", ${NOTE_BODY_FONT}`,
   sans: NOTE_BODY_FONT,

@@ -206,7 +206,38 @@ button:not(:disabled):active { transform: translateY(1px); }
 .inline-note-editor textarea:focus { outline: none; border-color: currentColor; background: #ffffff23; }
 .inline-note-editor textarea::placeholder { color: inherit; opacity: 0.6; }
 .inline-note-title { font-size: 21px; line-height: 1.24; font-weight: 650; margin-bottom: 6px; }
-.inline-note-editor .inline-note-body { font-family: "DM Sans", sans-serif; font-size: 16px; line-height: 1.45; }
+.inline-note-editor .inline-note-body { font-size: 16px; line-height: 1.45; }
+.note-artwork-tools { display: flex; flex-wrap: wrap; gap: 5px; margin: 3px 0 5px; }
+.note-artwork-tools button { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 4px 7px; border: 1px solid transparent; border-radius: 6px; font-size: 12px; font-weight: 600; }
+.note-artwork-tools button:hover, .note-artwork-tools button[aria-expanded="true"] { background: #ffffff47; border-color: #4f41222c; }
+.note-artwork-panel { display: grid; gap: 7px; color: #403a32; background: #fffcf5; border: 1px solid #4f41223a; border-radius: 9px; padding: 8px; box-shadow: 0 5px 15px #47392821; }
+.note-artwork-heading { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
+.note-artwork-heading button { display: grid; place-items: center; width: 30px; height: 26px; border-radius: 5px; }
+.note-artwork-heading button:hover { background: #ebe5d9; }
+.note-artwork-search { display: flex; align-items: center; gap: 6px; padding: 0 7px; color: #62594c; background: #f2ede3; border: 1px solid #584b3326; border-radius: 6px; }
+.note-artwork-search:focus-within { outline: 1px solid #72684e; }
+.note-artwork-search input { width: 100%; min-width: 0; min-height: 32px; color: #403a32; font-size: 14px; outline: none; }
+.note-artwork-categories { display: flex; align-items: center; gap: 4px; overflow-x: auto; padding: 1px 1px 4px; scrollbar-width: thin; }
+.note-artwork-categories button, .note-sketch-placement button { flex: none; padding: 4px 7px; min-height: 28px; border-radius: 5px; white-space: nowrap; font-size: 11px; }
+.note-artwork-categories button:hover, .note-artwork-categories button[aria-pressed="true"],
+.note-sketch-placement button:hover, .note-sketch-placement button[aria-pressed="true"] { background: #e8e5d8; color: #3d432f; }
+.note-sketch-placement { display: flex; flex-wrap: wrap; gap: 4px; }
+.note-artwork-grid { display: grid; gap: 3px; align-content: start; max-height: 185px; padding: 2px; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.emoji-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.sketch-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.note-artwork-grid button { border: 1px solid transparent; border-radius: 6px; display: grid; justify-items: center; min-height: 34px; min-width: 0; color: #393027; }
+.note-artwork-grid button:hover, .note-artwork-grid button[aria-pressed="true"] { background: #f0e8d3; border-color: #9989607a; }
+.note-artwork-grid button:focus-visible { outline: 2px solid #74694c; outline-offset: -2px; }
+.emoji-grid button { place-items: center; padding: 3px 0; font-size: 19px; line-height: 1; }
+.sketch-grid button { align-content: start; gap: 2px; min-height: 58px; padding: 4px 1px; font-size: 10px; line-height: 1.13; }
+.sketch-grid button span { overflow-wrap: anywhere; text-align: center; }
+.note-artwork-empty { grid-column: 1 / -1; padding: 8px 4px; font-size: 12px; }
+.note-remove-sketch { justify-self: start; padding: 4px; min-height: 28px; color: #78453d; font-size: 11px; }
+.note-remove-sketch:hover { text-decoration: underline; }
+.note-artwork-preview { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 5px; font-size: 11px; }
+.note-artwork-preview:has(.note-corner-preview) { margin-top: 3px; }
+.note-artwork-preview > [role="status"]:not(:empty) { margin-top: 4px; }
+.note-corner-preview { pointer-events: none; flex-shrink: 0; opacity: 0.82; }
 .inline-note-footer { display: flex; gap: 8px; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 11px; }
 .inline-note-footer > button { display: flex; align-items: center; gap: 5px; padding: 6px 8px; border-radius: 5px; font-size: 12px; font-weight: 650; background: #ffffff4d; }
 .inline-note-footer > button:hover { background: #ffffff80; }

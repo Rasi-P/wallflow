@@ -8,6 +8,7 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    watch: process.env.WALLFLOW_VITE_POLLING === 'true' ? { usePolling: true, interval: 250 } : undefined,
     proxy: {
       '/api/': {
         target: process.env.WALLFLOW_VITE_PROXY_TARGET ?? 'http://127.0.0.1:8000',

@@ -1,0 +1,4 @@
+# Django sources and its local environment are mounted at runtime.
+**
+!Dockerfile.dev
+!requirements.txt

@@ -1,0 +1,5 @@
+# The development image installs dependencies. Compose mounts the sources.
+**
+!Dockerfile.dev
+!package.json
+!package-lock.json

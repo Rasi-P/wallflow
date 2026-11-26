@@ -1,0 +1,71 @@
+name: wallflow
+
+x-postgres-env: &postgres-env
+  POSTGRES_DB: ${POSTGRES_DB:-wallflow}
+  POSTGRES_USER: ${POSTGRES_USER:-wallflow}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the repository root .env}
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    environment:
+      WALLFLOW_VITE_PROXY_TARGET: http://backend:8000
+      WALLFLOW_VITE_POLLING: "true"
+    ports:
+      - "127.0.0.1:${WALLFLOW_FRONTEND_PORT:-5174}:5173"
+    volumes:
+      - ./src:/app/src:ro
+      - ./public:/app/public:ro
+      - ./tests:/app/tests:ro
+      - ./index.html:/app/index.html:ro
+      - ./vite.config.ts:/app/vite.config.ts:ro
+      - ./tsconfig.json:/app/tsconfig.json:ro
+      - ./tsconfig.app.json:/app/tsconfig.app.json:ro
+      - ./tsconfig.node.json:/app/tsconfig.node.json:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    environment:
+      <<: *postgres-env
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      POSTGRES_SSLMODE: disable
+      DJANGO_SETTINGS_MODULE: config.settings.development
+      WALLFLOW_ORIGIN: "http://localhost:${WALLFLOW_FRONTEND_PORT:-5174}"
+      WALLFLOW_CALLBACK_ORIGIN: "http://localhost:${WALLFLOW_BACKEND_PORT:-8002}"
+    ports:
+      - "127.0.0.1:${WALLFLOW_BACKEND_PORT:-8002}:8000"
+    volumes:
+      - ./backend:/app:ro
+    command: ["sh", "-c", "python manage.py migrate --noinput && exec python manage.py runserver 0.0.0.0:8000"]
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/api/v1/health/', timeout=3).close()"]
+      interval: 5s
+      timeout: 4s
+      retries: 20
+      start_period: 15s
+
+  db:
+    image: postgres:17
+    environment: *postgres-env
+    volumes:
+      - pg17_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+volumes:
+  pg17_data:

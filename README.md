@@ -2,22 +2,91 @@
 
 A personal wall for ideas and reminders, with tactile paper notes on a 3D plaster wall.
 
+## Run with Docker Compose
+
+Docker Desktop runs the development stack as the `wallflow` project.
+
+| Service | Container | Mac access | Container connection |
+| --- | --- | --- | --- |
+| Vite | `wallflow-frontend-1` | `http://localhost:5174` | Proxies `/api/` to `http://backend:8000` |
+| Django | `wallflow-backend-1` | `http://localhost:8002` | Uses PostgreSQL at `db:5432` |
+| PostgreSQL 17 | `wallflow-db-1` | Through `docker compose exec db` | Uses the named volume `wallflow_pg17_data` |
+
+### Local configuration
+
+- Keep your existing `backend/.env`. The Django container reads it at runtime for the Django secret key, Google OAuth credentials and preview flag. If the file is missing, copy `backend/.env.example` and follow the [backend setup guide](backend/README.md).
+- The repository-root `.env` configures this stack's PostgreSQL role, password, database name and optional published ports. If the file is missing, copy `.env.example` and set `POSTGRES_PASSWORD` to a private value. Compose passes the same database credentials to PostgreSQL and Django. The settings inside Compose use the service hostname `db`. Your backend environment file remains usable for a native setup.
+- Before starting, check `lsof -nP -iTCP:5174 -sTCP:LISTEN` and `lsof -nP -iTCP:8002 -sTCP:LISTEN`. Compose sets `WALLFLOW_ORIGIN` to port 5174 and `WALLFLOW_CALLBACK_ORIGIN` to port 8002. If you have a root `.env` from the previous setup, set `WALLFLOW_FRONTEND_PORT=5174` and `WALLFLOW_BACKEND_PORT=8002` there as well.
+
+### Commands
+
+```sh
+docker compose config --quiet
+docker compose up --build
+docker compose ps
+docker compose logs -f
+docker compose exec backend python manage.py migrate
+docker compose exec backend python manage.py test --settings=config.settings.test
+docker compose exec frontend npm run typecheck
+docker compose exec frontend npm test
+docker compose exec frontend npm run build
+docker compose down
+```
+
+Django waits for PostgreSQL to accept TCP connections and then applies pending migrations before starting. Vite waits for Django's database health endpoint. Edits to the mounted application sources reload the development servers. Run `docker compose up --build` after changing dependency files.
+
+`docker compose down` leaves the named PostgreSQL data volume in place. Use the same database settings on subsequent runs. PostgreSQL uses the credentials in `.env` when it initializes an empty volume. To change a password on an existing volume, update the PostgreSQL role first and then the matching configuration. Browser wall data is origin-specific. A wall previously saved on port 5173 stays there. The app on `http://localhost:5174` uses separate browser storage.
+
+### Google OAuth
+
+In Google Cloud Console, register `http://localhost:8002/api/v1/auth/google/callback/` in the existing development Web client. Open the app at `http://localhost:5174` to sign in. Vite proxies the CSRF-protected sign-in request, and Google returns to Django on port 8002. Django redirects the browser to the frontend for a successful sign-in or error. Both URLs use the `localhost` hostname so the browser sends the host-scoped session cookie to both ports.
+
+If port 8002 must change, deliberately set `WALLFLOW_BACKEND_PORT` and register the exact new callback URI in Google Cloud Console. If only the frontend port changes, the existing callback URI stays the same. Use `localhost` consistently in the browser. When the Django preview is enabled in `backend/.env`, its routes also remain available on the backend port.
+
+### Smoke checks and database access
+
+```sh
+curl -fsS http://localhost:8002/api/v1/health/
+curl -fsS http://localhost:5174/api/v1/health/
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:5174/api/v1/auth/csrf/
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:5174/api/v1/auth/me/
+curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' http://localhost:8002/api/v1/auth/google/callback/
+```
+
+Expect both health requests to report `ok`, CSRF to return 200, and a session-free `/me/` to return 403. The callback smoke check without Google parameters returns 303 to `http://localhost:5174/sign-in?login=invalid`. Use the browser for a full sign-in and sign-out with your development Google account. To verify volume persistence, compare the PostgreSQL cluster identifier before and after `docker compose restart db`. Wait for `docker compose ps` to show the database is healthy again before checking.
+
+```sh
+docker compose exec db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc "SELECT system_identifier FROM pg_control_system()"'
+```
+
+For a local GUI database client, you can create `docker-compose.override.yml` containing the following mapping and then run Compose from the repository root. First check that 5434 is free.
+
+```yaml
+services:
+  db:
+    ports:
+      - "127.0.0.1:5434:5432"
+```
+
 ## Run locally
 
-Requires Node.js 20.19+ or 22.12+ and npm.
+Requires Node.js 20.19+ or 22.12+, npm, and the Django authentication service.
+
+1. Follow the [backend setup guide](backend/README.md) to configure PostgreSQL, apply migrations, and supply development Google OAuth credentials. Use the Google callback registration above.
+2. From `backend/` with its virtual environment active, start Django with `WALLFLOW_ORIGIN=http://localhost:5174 WALLFLOW_CALLBACK_ORIGIN=http://localhost:8002 python manage.py runserver 127.0.0.1:8002`.
+3. From the repository root, start Vite.
 
 ```sh
 npm install
-npm run dev
+WALLFLOW_VITE_PROXY_TARGET=http://127.0.0.1:8002 npm run dev -- --port 5174
 ```
 
-Open the local URL printed by Vite, normally http://localhost:5173.
+Open `http://localhost:5174`. Vite proxies `/api/` to Django. If you change the frontend port, update `WALLFLOW_ORIGIN`. If you change the backend port, update the Vite proxy target, `WALLFLOW_CALLBACK_ORIGIN` and the registered Google callback.
 
 ```sh
 npm run typecheck
 npm test
 npm run build
-npm run preview
 ```
 
 `npm test` uses Node's built-in test runner and TypeScript stripping, so it requires Node 22.18+ (Node 24 LTS is recommended). The app itself supports Vite's Node requirements above.
@@ -42,7 +111,7 @@ npm run preview
 - **Settings:** wall name, daylight / warm lighting, and interaction hints.
 - **Help:** the bottom-right button or **?**.
 
-Notes and settings persist in this browser's local storage. If storage is blocked or full, the header indicates that work is only available for the session. No account, server, or external API is used.
+After Google sign-in, notes and settings remain in this browser's local storage. If storage is blocked or full, the header indicates that work is only available for the session.
 
 ## Source layout
 
@@ -87,11 +156,11 @@ For a local comparison, append `?noteRendering=paper-ink` to the wall URL. The p
 - Wall rotation is bounded to ±25° tilt and ±30° turn, applied through its dedicated controls. Reset camera returns to the initial framing.
 - WebGL and hardware acceleration are required. Shading and performance depend on the device; pixel density is capped and textures are generated locally.
 
-No backend, authentication, Kanban columns, sidebar, or future product features are included.
+Google is the supported sign-in provider. Account-based wall storage and import are planned separately.
 
 ## Milestone verification
 
 `npm run typecheck`, `npm test`, and `npm run build` passed. Node tests exercise camera bounds at desktop and mobile aspect ratios, overlapping paper raycasts, synthetic touch input, and a 60-note workload. The lazy Three.js vendor chunk is 733 kB minified and 188 kB gzipped. Splitting Three.js core and WebGL into separate chunks or building from modular sources increased the combined gzip size in trial builds.
 
-The development server was attempted in the build environment, but local port binding was blocked (`listen EPERM` on 127.0.0.1:5173). A headless browser launch was also blocked, so rendered appearance and live gestures still need verification in an unrestricted local browser. Run `npm run dev` to perform that check.
+Use the Compose smoke checks above to verify the running stack and the browser sign-in flow.
 # wallflow

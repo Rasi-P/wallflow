@@ -14,6 +14,12 @@ export const OFFICE_BOARD_THICKNESS = 0.23
 export const OFFICE_FRAME_WIDTH = 0.18
 export const OFFICE_ROOM_MAX_DISTANCE = 86
 export const OFFICE_KEY_POSITION = [-43, 16, 32] as const
+export const OFFICE_SUN_SHADOW = { radius: 8, intensity: 0.63 } as const
+export const OFFICE_DOWNLIGHT = {
+  locations: [-5.6, 6.9], z: 4.6, aperture: 0.33, angle: 0.50, penumbra: 0.82,
+  range: 38, decay: 2, intensityPerKey: 21,
+  targetY: 5.8, targetZ: 2.45, color: '#fff1e2',
+} as const
 const halfFov = Math.tan(MathUtils.degToRad(WALL_CAMERA_FOV / 2))
 
 export function officeWhiteboardFrame(width: number, height: number) {

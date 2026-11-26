@@ -1,11 +1,16 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { Box3, BoxGeometry, Group, Mesh, MeshDepthMaterial, PerspectiveCamera, Raycaster, Texture, Vector3 } from 'three'
+import { Box3, BoxGeometry, Group, Mesh, MeshBasicMaterial, MeshDepthMaterial, MeshStandardMaterial,
+  PerspectiveCamera, Raycaster, Texture, Vector3 } from 'three'
 import {
-  OFFICE_BOARD_THICKNESS, OFFICE_FRAME_WIDTH, OFFICE_KEY_POSITION, OFFICE_ROOM, OFFICE_ROOM_MAX_DISTANCE,
+  OFFICE_BOARD_THICKNESS, OFFICE_DOWNLIGHT, OFFICE_FRAME_WIDTH, OFFICE_KEY_POSITION, OFFICE_ROOM, OFFICE_ROOM_MAX_DISTANCE,
   officeWhiteboardFrame, officeWhiteboardLighting,
 } from '../src/three/environments/officeWhiteboardLayout.ts'
 import { buildOfficeWhiteboard } from '../src/three/environments/officeWhiteboardModel.ts'
+import { conferenceTableFrame, conferenceTabletop, createConferenceChairs, shelfGlobe, TABLETOP_THICKNESS } from '../src/three/environments/officeWhiteboardFurnishings.ts'
+import { officeBooks } from '../src/three/environments/officeWhiteboardBooks.ts'
+import { officeCeiling, officeDownlightHousing, officeFootContacts, officeOcclusionTexture } from '../src/three/environments/officeWhiteboardLightingGeometry.ts'
+import type { BufferGeometry } from 'three'
 import { compactStudyFrame, createBoardCutaway, ROOM_BOARD_CLEARANCE } from '../src/three/environments/studyRoomLayout.ts'
 import { createPaperGeometry } from '../src/three/paperGeometry.ts'
 import { constrainWallView, WALL_CAMERA_FOV } from '../src/three/wallViewBounds.ts'
@@ -93,11 +98,42 @@ test('office light defaults to neutral daylight with bounded appearance controls
   assert.equal(officeWhiteboardLighting(appearance, 'warm').keyColor, '#fff5e8')
   assert.ok(officeWhiteboardLighting({ ...appearance, intensity: 115 }, 'daylight').key > defaults.key)
   assert.ok(officeWhiteboardLighting({ ...appearance, ambience: 'quiet' }, 'daylight').ambient < defaults.ambient)
+  assert.ok(defaults.key > defaults.ambient + defaults.hemisphere)
   const towardLight = new Vector3(...OFFICE_KEY_POSITION)
   const glassCrossing = towardLight.multiplyScalar(OFFICE_ROOM.left / towardLight.x)
   const window = OFFICE_ROOM.window
   assert.ok(glassCrossing.y > window.sill && glassCrossing.y < window.head)
   assert.ok(glassCrossing.z > window.rear && glassCrossing.z < window.front)
+})
+
+test('the recessed fixtures fit through real ceiling apertures without projecting into the room', () => {
+  const { ceiling } = OFFICE_ROOM
+  const { locations, z, aperture } = OFFICE_DOWNLIGHT
+  const slab = officeCeiling(-0.52, 38)
+  const material = new MeshBasicMaterial()
+  const surface = new Mesh(slab, material)
+  const ray = new Raycaster(new Vector3(), new Vector3(0, 1, 0))
+  try {
+    assert.ok(Math.abs(geometryBounds(slab).min.y - ceiling) < 1e-5)
+    for (const x of locations) {
+      ray.ray.origin.set(x, ceiling - 1, z)
+      assert.deepEqual(ray.intersectObject(surface), [])
+      ray.ray.origin.x = x + aperture + 0.10
+      assert.ok(Math.abs(ray.intersectObject(surface)[0].point.y - ceiling) < 1e-5)
+
+      const housing = officeDownlightHousing(x)
+      try {
+        const bounds = geometryBounds(housing)
+        assert.ok(bounds.min.y >= ceiling && bounds.max.y < ceiling + 0.5)
+        assert.ok(bounds.max.x > x + aperture && bounds.min.x < x - aperture)
+      } finally {
+        housing.dispose()
+      }
+    }
+  } finally {
+    slab.dispose()
+    material.dispose()
+  }
 })
 
 test('office geometry stays stationary, clips foreground obstructions, and passes raycasts through to notes', () => {
@@ -116,10 +152,23 @@ test('office geometry stays stationary, clips foreground obstructions, and passe
   const scene = new Group().add(board, model.room)
   try {
     const names = ['full-height charcoal glazing frames', 'floor-to-ceiling side glass', 'city and treetops beyond the glazing',
-      'built-in oak uprights and open shelves', 'wide natural oak conference tabletop', 'upholstered side chairs and far seat',
-      'window tree and trailing plants', 'shelf globe', 'warm under-shelf strip lights']
+      'built-in oak uprights and open shelves', 'wide natural oak conference tabletop', 'upholstered side chairs',
+      'individual leaves and branching stems', 'shelf globe', 'warm under-shelf strip lights',
+      'matte ceiling and soffit', 'recessed warm downlight housings', 'floor and cabinet contact shadows']
     for (const name of names) assert.ok(model.room.getObjectByName(name), name)
-    const plants = model.room.getObjectByName('window tree and trailing plants')
+    const ceiling = model.room.getObjectByName('matte ceiling and soffit')
+    assert.ok(ceiling instanceof Mesh && ceiling.material instanceof MeshStandardMaterial)
+    assert.equal(ceiling.material.roughness, 1)
+    const downlights = model.room.getObjectByName('recessed warm downlight housings')
+    assert.ok(downlights instanceof Mesh && downlights.material instanceof MeshStandardMaterial)
+    assert.ok(downlights.material.emissiveIntensity < 0.1)
+    assert.equal(downlights.castShadow, false)
+    const foregroundContacts = model.room.getObjectByName('foreground chair contact shadows')
+    assert.ok(foregroundContacts instanceof Mesh && foregroundContacts.material instanceof MeshBasicMaterial)
+    assert.equal(foregroundContacts.parent, model.foreground)
+    assert.equal(foregroundContacts.castShadow, false)
+    assert.equal(foregroundContacts.material.depthWrite, false)
+    const plants = model.room.getObjectByName('individual leaves and branching stems')
     assert.ok(plants instanceof Mesh && plants.customDepthMaterial instanceof MeshDepthMaterial)
     assert.equal(plants.geometry.attributes.plantWind.count, plants.geometry.attributes.position.count)
     assert.equal(model.motionTime.value, 0)
@@ -132,7 +181,8 @@ test('office geometry stays stationary, clips foreground obstructions, and passe
       assert.equal(object.material.clippingPlanes, cutaway.planes, object.name)
       geometries.add(object.geometry)
     })
-    assert.ok(batches <= 26, `too many room batches: ${batches}`)
+    // The separate ceiling and two contact batches add at most three meshes, with no extra shadow pass.
+    assert.ok(batches <= 29, `too many room batches: ${batches}`)
     assert.ok(geometries.size < batches, 'box batches reuse geometry')
     face.computeBoundingBox()
     assert.ok(Math.abs(face.boundingBox!.max.z + surface.position.z) < 1e-8)
@@ -162,6 +212,151 @@ test('office geometry stays stationary, clips foreground obstructions, and passe
     paperGeometry.dispose()
     surface.material.dispose()
     note.material.dispose()
+    Object.values(textures).forEach((texture) => texture.dispose())
+  }
+})
+
+function geometryBounds(geometry: BufferGeometry) {
+  geometry.computeBoundingBox()
+  return geometry.boundingBox!
+}
+
+test('soft contact patches match the existing chair and table feet', () => {
+  const table = conferenceTableFrame()
+  const chairs = createConferenceChairs(OFFICE_ROOM.floor)
+  const stamp = officeOcclusionTexture()
+  try {
+    const legs = [table, ...chairs.map(({ frame }) => frame)]
+    for (const geometry of legs) {
+      const patches = officeFootContacts(geometry)
+      assert.equal(patches.length, 4)
+      const bounds = geometryBounds(geometry)
+      for (const { x, y, z, width, strength } of patches) {
+        assert.ok(x > bounds.min.x && x < bounds.max.x && z > bounds.min.z && z < bounds.max.z)
+        assert.ok(y > OFFICE_ROOM.floor && y < OFFICE_ROOM.floor + 0.02)
+        assert.ok(width > 1 && width < 2 && strength < 1)
+      }
+    }
+    const { data, width, height } = stamp.image
+    const alpha = (x: number, y: number) => data[(y * width + x) * 4 + 3]
+    assert.ok(alpha(width / 2, height / 2) > alpha(width / 4, height / 2))
+    assert.equal(alpha(0, 0), 0)
+  } finally {
+    stamp.dispose()
+    table.dispose()
+    for (const { frame, upholstery } of chairs) { frame.dispose(); upholstery.dispose() }
+  }
+})
+
+test('four upholstered chairs have clear silhouettes and stay outside the table footprint', () => {
+  const { table, floor } = OFFICE_ROOM
+  const chairs = createConferenceChairs(floor)
+  const tabletop = conferenceTabletop()
+  const frame = conferenceTableFrame()
+  try {
+    assert.equal(chairs.length, 4)
+    const tableBounds = geometryBounds(tabletop)
+    const frameBounds = geometryBounds(frame)
+    const footprint = tableBounds.clone().union(frameBounds)
+    assert.ok(Math.abs(frameBounds.min.y - floor) < 1e-5)
+    assert.ok(Math.abs(frameBounds.max.y - (table.top - TABLETOP_THICKNESS)) < 1e-5)
+    const chairsAtFloor = chairs.map(({ upholstery, frame }) => {
+      assert.ok(Math.abs(geometryBounds(frame).min.y - floor) < 0.005)
+      const bounds = geometryBounds(upholstery).clone().union(geometryBounds(frame))
+      assert.equal(bounds.intersectsBox(footprint), false)
+      return bounds
+    })
+    for (const [index, chair] of chairsAtFloor.entries()) {
+      assert.ok(chairsAtFloor.slice(index + 1).every((other) => !chair.intersectsBox(other)))
+    }
+    const vertex = new Vector3()
+    for (const [width, height] of [[1672, 941], [1536, 1024], [1440, 900], [1024, 548], [800, 640]]) {
+      const camera = overviewCamera(width, height)
+      const boardBelow = vertex.set(0, -WALL_HEIGHT / 2, 0).project(camera).y
+      const silhouettes = chairs.map(({ upholstery }) => {
+        const box = new Box3()
+        for (let i = 0; i < upholstery.attributes.position.count; i++) {
+          box.expandByPoint(vertex.fromBufferAttribute(upholstery.attributes.position, i).project(camera))
+        }
+        assert.ok(box.max.y < boardBelow)
+        return box
+      }).sort((a, b) => a.min.x - b.min.x)
+      for (let i = 1; i < silhouettes.length; i++) assert.ok(silhouettes[i].min.x - silhouettes[i - 1].max.x > 0.07)
+    }
+  } finally {
+    tabletop.dispose()
+    frame.dispose()
+    for (const chair of chairs) { chair.upholstery.dispose(); chair.frame.dispose() }
+  }
+})
+
+test('spaced books and page blocks stay in the cabinet bays and the lower globe has clearance', () => {
+  const { cabinet } = OFFICE_ROOM
+  const tops = [cabinet.baseTop, -1.91, 5.73] as const
+  const { shelves, notebook } = officeBooks(tops)
+  const books = [...shelves.flat(), notebook]
+  const globe = shelfGlobe([(cabinet.left + cabinet.right) / 2 - 1.63, cabinet.baseTop, 1.22])
+  try {
+    const globeBounds = geometryBounds(globe.globe).clone().union(geometryBounds(globe.mount))
+    for (const [row, volumes] of shelves.entries()) {
+      const boxes = volumes.map(({ jacket }) => geometryBounds(jacket))
+      for (const [index, bounds] of boxes.entries()) {
+        assert.ok(bounds.min.x > cabinet.left + 0.44 && bounds.max.x < cabinet.right - 0.44)
+        assert.ok(bounds.min.z > -0.19 && bounds.max.z < cabinet.front - 0.19)
+        assert.ok(bounds.containsBox(geometryBounds(volumes[index].pages)))
+        const supportingSurface = row === 1 && index === boxes.length - 1 ? boxes[index - 1].max.y : tops[row]
+        assert.ok(Math.abs(bounds.min.y - supportingSurface) < 1e-5)
+        assert.ok(bounds.max.y < (tops[row + 1] ?? cabinet.top) - 0.32)
+        if (row === 0) assert.ok(bounds.min.x - globeBounds.max.x > 1)
+        for (const next of boxes.slice(index + 1)) {
+          // The horizontal volumes touch along their covers. They have no overlapping interior.
+          const overlap = bounds.clone().intersect(next).getSize(new Vector3())
+          assert.ok(overlap.x <= 1e-5 || overlap.y <= 1e-5 || overlap.z <= 1e-5)
+        }
+      }
+    }
+    assert.ok(Math.abs(geometryBounds(notebook.jacket).min.y - OFFICE_ROOM.table.top) < 1e-5)
+  } finally {
+    globe.globe.dispose()
+    globe.mount.dispose()
+    for (const volume of books) for (const geometry of Object.values(volume)) geometry.dispose()
+  }
+})
+
+test('animated office plants clear the glass and shelves, and desktop foliage stays above the oak', () => {
+  const cutaway = createBoardCutaway()
+  const textures = { plaster: new Texture(), oak: new Texture(), sky: new Texture(), fabric: new Texture() }
+  const model = buildOfficeWhiteboard(cutaway.planes, textures)
+  try {
+    const plants = model.room.getObjectByName('individual leaves and branching stems')
+    assert.ok(plants instanceof Mesh)
+    const { position, plantWind } = plants.geometry.attributes
+    const { cabinet, table, left } = OFFICE_ROOM
+    const worktopLeaves: Vector3[] = []
+    for (let i = 0; i < position.count; i++) {
+      const x = position.getX(i), y = position.getY(i), z = position.getZ(i)
+      const wind = plantWind.getX(i)
+      if (x < 0) {
+        assert.ok(x - wind > left + 0.35)
+        assert.ok(z + wind < table.rear + 0.8 && x + wind < table.left)
+      } else if (x > cabinet.left) {
+        assert.ok(x + wind < cabinet.right - 0.44)
+        assert.ok(y - wind > 5.73 && y + wind < cabinet.top - 0.4)
+        assert.ok(z - wind > -0.19 && z + wind < cabinet.front - 0.19)
+      } else {
+        assert.ok(y - wind > table.top && z + wind < table.front)
+        worktopLeaves.push(new Vector3(x, y + wind * 0.09, z - wind))
+      }
+    }
+    const board = new Group()
+    assert.ok(worktopLeaves.length > 0)
+    for (const [width, height] of [[1672, 941], [1024, 548], [800, 640]]) {
+      cutaway.update(board, overviewCamera(width, height).position)
+      assert.ok(worktopLeaves.every((point) => cutaway.planes.some((plane) => plane.distanceToPoint(point) >= 0)),
+        `tabletop foliage enters the board silhouette at ${width} × ${height}`)
+    }
+  } finally {
+    model.dispose()
     Object.values(textures).forEach((texture) => texture.dispose())
   }
 })

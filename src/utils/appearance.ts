@@ -45,8 +45,8 @@ export const THEME_PRESETS: Record<EnvironmentTheme, ThemePreset> = {
   minimal: MINIMAL,
   office: {
     ...MINIMAL, name: 'Office Whiteboard', background: '#e1e5e7', wall: '#f7f8f7',
-    ambientColor: '#f9f6f1', sky: '#f3f8ff', ground: '#c8b6a2', keyColor: '#fcfdff',
-    fillColor: '#f6f2ed', ambient: 0.48, hemisphere: 0.82, key: 2.22, fill: 0.33,
+    ambientColor: '#faf8f4', sky: '#f3f8ff', ground: '#d9d4cb', keyColor: '#fcfdff',
+    fillColor: '#f8f5ee', ambient: 0.42, hemisphere: 0.98, key: 2.04, fill: 0.29,
     trim: '#515452',
   },
   study: {

@@ -1,8 +1,10 @@
 import {
   BufferGeometry, CatmullRomCurve3, Color, CylinderGeometry, ExtrudeGeometry, Float32BufferAttribute,
-  Matrix4, Quaternion, Shape, TorusGeometry, TubeGeometry, Vector3,
+  Matrix4, Quaternion, Shape, SphereGeometry, TorusGeometry, TubeGeometry, Vector3,
 } from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
+import { OFFICE_ROOM } from './officeWhiteboardLayout.ts'
 import { globeSurface, pottery } from './studyRoomProps.ts'
 
 type Point = [number, number, number]
@@ -13,31 +15,30 @@ function mergeParts(parts: BufferGeometry[]) {
   return geometry
 }
 
-function chairBack() {
-  const outline = new Shape()
-  outline.moveTo(-1.35, -2.12)
-  outline.bezierCurveTo(-2.16, -1.75, -2.44, -0.18, -2.26, 1.05)
-  outline.bezierCurveTo(-2.13, 2.21, -1.13, 2.31, 0, 2.32)
-  outline.bezierCurveTo(1.13, 2.31, 2.13, 2.21, 2.26, 1.05)
-  outline.bezierCurveTo(2.44, -0.18, 2.16, -1.75, 1.35, -2.12)
-  outline.quadraticCurveTo(0, -2.5, -1.35, -2.12)
-  return new ExtrudeGeometry(outline, {
-    depth: 0.23, curveSegments: 8, bevelEnabled: true, bevelSize: 0.19, bevelThickness: 0.17, bevelSegments: 3,
-  }).rotateX(0.17)
-}
-
-function chairSeat() {
-  const outline = new Shape()
-  outline.moveTo(-1.45, -1.93)
-  outline.bezierCurveTo(-2.15, -1.89, -2.26, -1.22, -2.12, 0.95)
-  outline.quadraticCurveTo(-2, 1.84, -1.24, 1.9)
-  outline.lineTo(1.24, 1.9)
-  outline.quadraticCurveTo(2, 1.84, 2.12, 0.95)
-  outline.bezierCurveTo(2.26, -1.22, 2.15, -1.89, 1.45, -1.93)
-  outline.quadraticCurveTo(0, -2.07, -1.45, -1.93)
-  return new ExtrudeGeometry(outline, {
-    depth: 0.23, curveSegments: 8, bevelEnabled: true, bevelSize: 0.18, bevelThickness: 0.16, bevelSegments: 3,
-  }).rotateX(-Math.PI / 2)
+function upholsteredCushion(back: boolean) {
+  const geometry = new SphereGeometry(1, 36, 24)
+  const { position, uv } = geometry.attributes
+  const colors = new Float32Array(position.count * 3)
+  const fabric = new Color(back ? '#b9afa4' : '#c3b9ad')
+  const welt = fabric.clone().multiplyScalar(0.84)
+  for (let i = 0; i < position.count; i++) {
+    const x = position.getX(i), y = position.getY(i), z = position.getZ(i)
+    const radius = Math.hypot(x, y)
+    const roundness = radius === 0 ? 1 : radius / Math.hypot(x * x, y * y) ** 0.5
+    const taper = back ? 0.93 + y * 0.11 : 0.99 + y * 0.067
+    const curvedX = x * roundness * taper * (back ? 2.12 : 2.33)
+    const curvedY = y * roundness * (back ? 1.96 : 2.22)
+    const loft = Math.sign(z) * Math.abs(z) ** 0.59 * (back ? 0.25 : 0.31)
+    // The upholstered shell wraps around the sitter; the seat has a flatter center and a rolled front edge.
+    const contour = back ? -0.38 * (curvedX / 2.12) ** 2 : -0.09 * (1 - x * x) - 0.105 * Math.max(0, y)
+    position.setXYZ(i, curvedX, curvedY, loft + contour)
+    uv.setXY(i, curvedX * 0.43, curvedY * 0.43)
+    const tint = Math.abs(z) < 0.075 ? welt : fabric
+    tint.toArray(colors, i * 3)
+  }
+  geometry.setAttribute('color', new Float32BufferAttribute(colors, 3))
+  geometry.computeVertexNormals()
+  return geometry
 }
 
 function bar(start: Vector3, end: Vector3, radius: number) {
@@ -51,36 +52,94 @@ function bar(start: Vector3, end: Vector3, radius: number) {
 
 export function createConferenceChairs(floor: number) {
   const placed = [
-    { x: -17.6, z: 15.45, turn: -Math.PI * 0.62 },
-    { x: 18.6, z: 14.45, turn: Math.PI * 0.60 },
-    { x: -5.6, z: 5.3, turn: Math.PI },
-    { x: -8.2, z: 24.4, turn: 0.06, foreground: true },
-    { x: 8.1, z: 24.6, turn: -0.05, foreground: true },
+    { x: -20.18, z: 14.35, turn: -1.38, foreground: false },
+    { x: 20.85, z: 14.55, turn: 1.38, foreground: false },
+    { x: -7.75, z: 25.04, turn: -0.10, foreground: true },
+    { x: 8.3, z: 25.19, turn: 0.08, foreground: true },
   ]
-  const back = chairBack()
-  const seat = chairSeat()
-  const legs: BufferGeometry[] = []
-  const nearLegs: BufferGeometry[] = []
-  const farSeats: BufferGeometry[] = []
-  const nearSeats: BufferGeometry[] = []
-  for (const { x, z, turn, foreground } of placed) {
-    const upholstery = foreground ? nearSeats : farSeats
-    upholstery.push(
-      back.clone().translate(0, 5.72, 1.52).rotateY(turn).translate(x, floor, z),
-      seat.clone().translate(0, 3.4, -0.02).rotateY(turn).translate(x, floor, z),
-    )
-    for (const side of [-1, 1]) for (const end of [-1, 1]) {
-      const supports = foreground ? nearLegs : legs
-      supports.push(bar(new Vector3(side * 1.86, 0, end * 1.71), new Vector3(side * 1.51, 3.45, end * 1.18), 0.15)
-        .rotateY(turn).translate(x, floor, z))
-    }
-  }
+  const back = upholsteredCushion(true).rotateX(0.15).translate(0, 6.25, 1.76)
+  const seat = upholsteredCushion(false).rotateX(-Math.PI / 2).translate(0, 4.46, -0.04)
+  const supportParts = [-1, 1].flatMap((side) => [
+    ...[-1, 1].map((end) => bar(new Vector3(side * 2.08, 0.018, end * 1.87),
+      new Vector3(side * 1.6, 4.27, end * 1.46), 0.14)),
+    bar(new Vector3(side * 1.61, 4.17, -1.48), new Vector3(side * 1.61, 4.17, 1.54), 0.15),
+    bar(new Vector3(side * 1.52, 4.13, 1.45), new Vector3(side * 1.3, 5.66, 1.68), 0.125),
+  ])
+  const frame = mergeParts([
+    ...supportParts,
+    bar(new Vector3(-1.62, 4.16, 1.49), new Vector3(1.62, 4.16, 1.49), 0.13),
+  ])
+  const cushion = mergeGeometries([seat, back])!
+  const chairs = placed.map(({ x, z, turn, foreground }) => ({
+    upholstery: cushion.clone().rotateY(turn).translate(x, floor, z),
+    frame: frame.clone().rotateY(turn).translate(x, floor, z),
+    foreground,
+  }))
   back.dispose()
   seat.dispose()
-  return {
-    seating: mergeParts(farSeats), foreground: mergeParts(nearSeats),
-    supports: mergeParts(legs), foregroundSupports: mergeParts(nearLegs),
+  cushion.dispose()
+  frame.dispose()
+  return chairs
+}
+
+export const TABLETOP_THICKNESS = 0.56
+
+export function conferenceTabletop() {
+  const { table } = OFFICE_ROOM
+  const width = table.right - table.left
+  const depth = table.front - table.rear
+  const bevel = 0.07
+  const x = width / 2 - bevel, z = depth / 2 - bevel
+  const radius = 1.24
+  const outline = new Shape()
+  outline.moveTo(-x + radius, -z)
+  outline.lineTo(x - radius, -z)
+  outline.quadraticCurveTo(x, -z, x, -z + radius)
+  outline.lineTo(x, z - radius)
+  outline.quadraticCurveTo(x, z, x - radius, z)
+  outline.lineTo(-x + radius, z)
+  outline.quadraticCurveTo(-x, z, -x, z - radius)
+  outline.lineTo(-x, -z + radius)
+  outline.quadraticCurveTo(-x, -z, -x + radius, -z)
+  const geometry = new ExtrudeGeometry(outline, {
+    curveSegments: 8, depth: TABLETOP_THICKNESS - 2 * bevel, bevelEnabled: true,
+    bevelThickness: bevel, bevelSize: bevel, bevelSegments: 3,
+  }).rotateX(-Math.PI / 2).translate((table.left + table.right) / 2,
+    table.top - TABLETOP_THICKNESS + bevel, (table.rear + table.front) / 2)
+  const { position, normal, uv } = geometry.attributes
+  for (let i = 0; i < position.count; i++) {
+    const u = (position.getX(i) - table.left) / width
+    const v = (position.getZ(i) - table.rear) / depth
+    const edgeGrain = 0.32 + (position.getY(i) - table.top) * 0.17
+    uv.setXY(i, Math.abs(normal.getX(i)) > 0.85 ? v : u, Math.abs(normal.getY(i)) > 0.65 ? v : edgeGrain)
   }
+  return geometry
+}
+
+export function conferenceTableFrame() {
+  const { table, floor } = OFFICE_ROOM
+  const underside = table.top - TABLETOP_THICKNESS
+  const legHeight = underside - 0.14 - floor
+  const xs = [table.left + 2.85, table.right - 2.85]
+  const zs = [table.rear + 2.2, table.front - 2.2]
+  const centerX = (table.left + table.right) / 2
+  const centerZ = (table.rear + table.front) / 2
+  const plates: BufferGeometry[] = []
+  const legs = xs.flatMap((x) => zs.map((z) => {
+    plates.push(new RoundedBoxGeometry(1.08, 0.14, 1.18, 1, 0.035).translate(x, underside - 0.07, z))
+    const leg = new RoundedBoxGeometry(0.63, legHeight, 0.68, 2, 0.057)
+    const { position } = leg.attributes
+    for (let i = 0; i < position.count; i++) {
+      const foot = 0.5 - position.getY(i) / legHeight
+      const taper = 1 - 0.21 * foot
+      position.setX(i, position.getX(i) * taper + Math.sign(x - centerX) * foot * 0.33)
+      position.setZ(i, position.getZ(i) * taper + Math.sign(z - centerZ) * foot * 0.22)
+    }
+    return leg.translate(x, floor + legHeight / 2, z)
+  }))
+  const aprons = zs.map((z) => new RoundedBoxGeometry(xs[1] - xs[0], 0.28, 0.36, 1, 0.05)
+    .translate(centerX, underside - 0.185, z))
+  return mergeParts([...legs, ...plates, ...aprons])
 }
 
 function colored(geometry: BufferGeometry, base: Color, tip = base) {
@@ -94,16 +153,16 @@ function colored(geometry: BufferGeometry, base: Color, tip = base) {
   return geometry
 }
 
-function ficusLeaf() {
+function officeLeaf() {
   const sections = 10
   const vertices: number[] = []
   const texCoords: number[] = []
   const indices: number[] = []
   for (let i = 0; i <= sections; i++) {
     const t = i / sections
-    const width = 0.018 + 0.31 * Math.sin(Math.PI * t) ** 0.9
-    const sag = 0.11 * Math.sin(Math.PI * t) - 0.24 * t ** 2
-    vertices.push(-width, t, sag - width * 0.36, 0, t, sag, width, t, sag - width * 0.46)
+    const width = 0.008 + 0.29 * Math.sin(Math.PI * t) ** 0.86 * (1.13 - t * 0.29)
+    const sag = 0.10 * Math.sin(Math.PI * t) - 0.21 * t ** 2
+    vertices.push(-width, t, sag - width * 0.34, 0, t, sag, width * 0.96, t, sag - width * 0.43)
     texCoords.push(0, t, 0.5, t, 1, t)
     if (i < sections) {
       const j = i * 3
@@ -118,32 +177,53 @@ function ficusLeaf() {
   return geometry
 }
 
-export function windowPlant([x, y, z]: Point) {
+const plantShapes = {
+  floor: { height: 6.9, reach: 1.92, depth: 0.66, leaf: 1.17, branches: 6, leaves: 4, heading: 0.36 },
+  desk: { height: 0.88, reach: 0.65, depth: 0.7, leaf: 0.49, branches: 4, leaves: 3, heading: 1.27 },
+  shelf: { height: 2.18, reach: 0.92, depth: 0.57, leaf: 0.76, branches: 5, leaves: 3, heading: 0.9 },
+}
+
+export function createOfficePlant(kind: keyof typeof plantShapes, [x, y, z]: Point) {
+  const shape = plantShapes[kind]
   const parts: BufferGeometry[] = []
-  const leaf = ficusLeaf()
-  const bark = new Color('#69513b')
-  const leaves = ['#36552e', '#597744', '#657d43', '#406239', '#748b43'].map((tone) => new Color(tone))
-  const vein = new Color('#9aa963')
-  for (let branch = 0; branch < 8; branch++) {
-    const angle = branch * 2.4
-    const height = 6.3 + 2.85 * Math.sin(branch * 1.98 + 1)
-    const reach = 1.9 + (branch % 3) * 0.64
-    const dx = Math.cos(angle) * reach, dz = Math.sin(angle) * reach * 0.73
+  const leaf = officeLeaf()
+  const bark = new Color(kind === 'floor' ? '#77613e' : '#637244')
+  const tones = ['#31552e', '#49693b', '#688449', '#3e603a', '#789052'].map((tone) => new Color(tone))
+  const vein = new Color('#8b9c56')
+  const vertical = new Vector3(0, 1, 0)
+  const trunkRadius = kind === 'floor' ? 0.104 : 0.032
+  const trunk = new CatmullRomCurve3([
+    new Vector3(0, -0.025, 0), new Vector3(shape.reach * 0.12, shape.height * 0.37, -0.04),
+    new Vector3(0.03, shape.height * 0.68, 0.04), new Vector3(-shape.reach * 0.13, shape.height, 0.02),
+  ])
+  parts.push(colored(new TubeGeometry(trunk, 18, trunkRadius, 7), bark).translate(x, y, z))
+  for (let branch = 0; branch < shape.branches; branch++) {
+    const level = branch / (shape.branches - 1)
+    const angle = shape.heading + branch * 2.40
+    const spread = shape.reach * (1 - level * 0.42)
+    const root = trunk.getPoint(0.25 + level * 0.52)
+    const rise = shape.height * (0.26 + level * 0.053)
+    const dx = Math.cos(angle) * spread, dz = Math.sin(angle) * spread * shape.depth
     const curve = new CatmullRomCurve3([
-      new Vector3(0, 0, 0),
-      new Vector3(dx * 0.14, height * 0.52, dz * 0.25),
-      new Vector3(dx * 0.57, height * 0.83, dz * 0.57),
-      new Vector3(dx, height, dz),
+      root,
+      root.clone().add(new Vector3(dx * 0.35, rise * 0.36, dz * 0.35)),
+      root.clone().add(new Vector3(dx * 0.73, rise * 0.78, dz * 0.72)),
+      root.clone().add(new Vector3(dx, rise, dz)),
     ])
-    parts.push(colored(new TubeGeometry(curve, 12, 0.055 + (branch % 3) * 0.014, 6), bark).translate(x, y, z))
-    for (let i = 0; i < 8; i++) {
-      const point = curve.getPoint(0.46 + i * 0.074)
-      const size = (2.09 - i * 0.075 + 0.23 * Math.sin(i * 5 + branch)) * (0.82 + 0.07 * (branch % 3))
+    parts.push(colored(new TubeGeometry(curve, 9, trunkRadius * (0.41 - level * 0.13), 5), bark).translate(x, y, z))
+    for (let i = 0; i < shape.leaves; i++) {
+      const t = 0.38 + i * (0.61 / (shape.leaves - 1))
+      const point = curve.getPoint(t)
+      const size = shape.leaf * (1.06 - t * 0.27 + 0.15 * Math.sin(branch * 6 + i * 3.1))
       const side = i % 2 === 0 ? -1 : 1
-      parts.push(colored(leaf.clone(), leaves[(branch + i) % leaves.length], vein)
-        .scale(size, size, size).rotateX(-0.2 + 0.22 * Math.cos(branch + i))
-        .rotateZ(side * (0.83 + 0.47 * Math.sin(i * 3.6))).rotateY(angle + side * 0.51)
-        .translate(x + point.x, y + point.y, z + point.z))
+      const direction = angle + side * (0.87 - t * 0.34)
+      const blade = new Vector3(Math.cos(direction), 0.1 + t * 0.25, Math.sin(direction) * shape.depth).normalize()
+      const stemEnd = point.clone().addScaledVector(blade, size * 0.19)
+      const aim = new Quaternion().setFromUnitVectors(vertical, blade)
+      parts.push(colored(bar(point, stemEnd, trunkRadius * 0.16), bark).translate(x, y, z))
+      parts.push(colored(leaf.clone(), tones[(branch * 2 + i) % tones.length], vein)
+        .scale(size * (0.83 + level * 0.15), size, size).rotateY(0.57 * Math.sin(i * 2.2 + branch))
+        .applyQuaternion(aim).translate(x + stemEnd.x, y + stemEnd.y, z + stemEnd.z))
     }
   }
   leaf.dispose()
@@ -153,10 +233,13 @@ export function windowPlant([x, y, z]: Point) {
 export function shelfGlobe([x, y, z]: Point) {
   const center = y + 1.52
   const globe = globeSurface([0, 0, 0]).scale(1.18, 1.18, 1.18).translate(x, center, z)
+  const axle = new Vector3(-Math.sin(0.34), Math.cos(0.34), 0).applyAxisAngle(new Vector3(0, 1, 0), -0.15)
   const mount = mergeParts([
     new TorusGeometry(1.14, 0.043, 8, 36, Math.PI * 1.56)
       .rotateZ(0.34).rotateY(-0.15).translate(x, center, z),
     pottery([[0, 0], [0.57, 0], [0.57, 0.08], [0.36, 0.16], [0.15, 0.19], [0.11, 0.46], [0, 0.46]], [x, y, z]),
+    ...[-1, 1].map((side) => bar(new Vector3(x, center, z).addScaledVector(axle, side * 1.03),
+      new Vector3(x, center, z).addScaledVector(axle, side * 1.16), 0.031)),
   ])
   return { globe, mount }
 }

@@ -1,4 +1,5 @@
 import { useWallStore } from '../../stores/wallStore'
+import { useEnvironmentMotionStore } from '../../stores/environmentMotionStore'
 import type { NoteDefaults, WallAppearance } from '../../types/wall'
 import { AMBIENCE_OPTIONS, LIGHT_INTENSITY_STEP, MAX_LIGHT_INTENSITY, MIN_LIGHT_INTENSITY, WALL_SHADES } from '../../utils/appearance'
 import { NoteColorPicker, ThemePicker } from './AppearancePickers'
@@ -7,7 +8,10 @@ export function AppearanceSettings() {
   const appearance = useWallStore((s) => s.appearance)
   const defaults = useWallStore((s) => s.noteDefaults)
   const lighting = useWallStore((s) => s.lighting)
+  const motionRoom = appearance.theme === 'office' ? 'office' : 'study'
+  const animateEnvironment = useEnvironmentMotionStore((s) => s[motionRoom])
   const actions = useWallStore.getState()
+  const hasDaylightRoom = appearance.theme === 'minimal' || appearance.theme === 'office'
 
   return <>
     <section className="settings-section" aria-labelledby="appearance-heading">
@@ -21,8 +25,8 @@ export function AppearanceSettings() {
           {Object.entries(AMBIENCE_OPTIONS).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
         </select></label>
         <label>Lighting tone<select value={lighting} onChange={(event) => actions.setLighting(event.target.value === 'warm' ? 'warm' : 'daylight')}>
-          <option value="daylight">{appearance.theme === 'minimal' ? 'Neutral daylight' : 'Theme lighting'}</option>
-          <option value="warm">{appearance.theme === 'minimal' ? 'Warmer daylight' : 'Golden hour'}</option>
+          <option value="daylight">{hasDaylightRoom ? 'Neutral daylight' : 'Theme lighting'}</option>
+          <option value="warm">{hasDaylightRoom ? 'Warmer daylight' : 'Golden hour'}</option>
         </select></label>
         <div className="appearance-slider"><span><label htmlFor="wall-light-intensity">Light intensity</label><output>{appearance.intensity}%</output></span>
           <input id="wall-light-intensity" type="range" min={MIN_LIGHT_INTENSITY} max={MAX_LIGHT_INTENSITY} step={LIGHT_INTENSITY_STEP}
@@ -30,6 +34,11 @@ export function AppearanceSettings() {
             onChange={(event) => actions.setAppearance({ intensity: Number(event.target.value) })} />
         </div>
       </div>
+      {hasDaylightRoom && <label className="toggle-label">
+        <strong>{motionRoom === 'office' ? 'Animate office environment' : 'Animate study room'}</strong>
+        <input type="checkbox" role="switch" checked={animateEnvironment}
+          onChange={(event) => useEnvironmentMotionStore.getState().setEnabled(motionRoom, event.target.checked)} />
+      </label>}
     </section>
     <section className="settings-section" aria-labelledby="note-defaults-heading">
       <h3 id="note-defaults-heading">New notes</h3>

@@ -1,7 +1,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { ACESFilmicToneMapping, PCFShadowMap } from 'three'
-import type { Group } from 'three'
+import type { DirectionalLight, Group, SpotLight } from 'three'
 import type { BindNoteSurface } from './noteSurface'
 import { Wall } from '../components/wall/Wall'
 import { useWallStore } from '../stores/wallStore'
@@ -13,6 +13,7 @@ import { WallLoading } from '../components/ui/WallLoading'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 import { EnvironmentLighting } from './EnvironmentLighting'
 import { PersonalStudyRoom } from './environments/PersonalStudyRoom'
+import { OfficeWhiteboard } from './environments/OfficeWhiteboard'
 import { isPersonalStudyRoom } from './environments/studyRoomLayout'
 import { createStudyPlaster } from './environments/studyRoomMaterials'
 
@@ -25,8 +26,12 @@ const cameraOptions = {
 
 export default memo(function WallScene({ editorElement }: { editorElement: HTMLDivElement | null }) {
   const mode = useWallStore((s) => s.mode)
-  const studyRoom = useWallStore((s) => isPersonalStudyRoom(s.appearance.theme))
+  const theme = useWallStore((s) => s.appearance.theme)
+  const studyRoom = isPersonalStudyRoom(theme)
+  const office = theme === 'office'
   const wall = useRef<Group>(null)
+  const roomSun = useRef<DirectionalLight>(null)
+  const studyWindow = useRef<SpotLight>(null)
   const [ready, setReady] = useState(false)
   const [prototypeSurface, setPrototypeSurface] = useState<BindNoteSurface | null>(null)
   const reducedMotion = useReducedMotion()
@@ -70,10 +75,12 @@ export default memo(function WallScene({ editorElement }: { editorElement: HTMLD
       }}
       onPointerMissed={() => useWallStore.getState().select(null)}
       fallback={<div className="webgl-fallback"><h2>Your wall needs WebGL.</h2><p>Open WALLFLOW in a browser with hardware acceleration enabled.</p></div>}>
-      <EnvironmentLighting studyRoom={studyRoom} />
+      <EnvironmentLighting studyRoom={studyRoom} office={office} roomSun={roomSun} studyWindow={studyWindow} />
       <Wall group={wall} prototypeSurface={prototypeSurface} reducedMotion={reducedMotion} studyPlaster={studyPlaster} />
-      {studyPlaster && <PersonalStudyRoom board={wall} plasterTexture={studyPlaster} />}
-      <CameraRig wall={wall} reducedMotion={reducedMotion} studyRoom={studyRoom} />
+      {studyPlaster && <PersonalStudyRoom board={wall} plasterTexture={studyPlaster}
+        sun={roomSun} windowLight={studyWindow} reducedMotion={reducedMotion} />}
+      {office && <OfficeWhiteboard board={wall} sun={roomSun} reducedMotion={reducedMotion} />}
+      <CameraRig wall={wall} reducedMotion={reducedMotion} room={office ? 'office' : studyRoom ? 'study' : null} />
       <NoteEditorPosition wall={wall} element={editorElement} />
     </Canvas> : <WallLoading />}
   </div>

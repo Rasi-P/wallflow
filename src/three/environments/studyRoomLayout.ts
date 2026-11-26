@@ -17,12 +17,24 @@ export const STUDY_ROOM = {
 export const STUDY_ROOM_MAX_DISTANCE = 84
 const halfFov = Math.tan(MathUtils.degToRad(WALL_CAMERA_FOV / 2))
 
+export const STUDY_KEY_POSITION = [-23, 16, 25] as const
 export const STUDY_WINDOW_LIGHT = {
   position: [-24, 15, 18],
   target: [-17, -9, 0],
   angle: 0.59,
   range: 72,
 } as const
+
+export function studyDaylightPositions(seconds: number) {
+  const rise = 0.62 * Math.sin(seconds * Math.PI * 2 / 247)
+  const drift = 0.74 * Math.sin(seconds * Math.PI * 2 / 313)
+  const [x, y, z] = STUDY_KEY_POSITION
+  const [targetX, targetY, targetZ] = STUDY_WINDOW_LIGHT.target
+  return {
+    sun: [x, y + rise, z + drift] as const,
+    windowTarget: [targetX + drift * 0.47, targetY + rise * 0.38, targetZ] as const,
+  }
+}
 
 export function studyRoomLighting(appearance: WallAppearance, lighting: Lighting) {
   const existing = environmentLighting(appearance, 'daylight')

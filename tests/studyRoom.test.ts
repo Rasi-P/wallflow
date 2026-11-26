@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { Euler, Group, MathUtils, Mesh, PerspectiveCamera, Raycaster, SpotLight, Texture, Vector3 } from 'three'
+import { Box3, Euler, Group, MathUtils, Mesh, MeshDepthMaterial, PerspectiveCamera, Raycaster, SpotLight, Texture, Vector3 } from 'three'
 import { constrainWallView, MAX_CAMERA_DISTANCE, MIN_CAMERA_DISTANCE } from '../src/three/wallViewBounds.ts'
 import { MAX_NOTES, SAMPLE_NOTES, WALL_HEIGHT, WALL_WIDTH } from '../src/utils/constants.ts'
 import type { Point2, StickyNoteData } from '../src/types/wall.ts'
@@ -8,8 +8,9 @@ import { getNoteSize } from '../src/utils/noteDimensions.ts'
 import { DEFAULT_APPEARANCE, THEME_PRESETS, wallFinish } from '../src/utils/appearance.ts'
 import {
   compactStudyFrame, createBoardCutaway, isPersonalStudyRoom, ROOM_BOARD_CLEARANCE, STUDY_ROOM, STUDY_ROOM_MAX_DISTANCE,
-  STUDY_WINDOW_LIGHT, studyRoomFrame, studyRoomLighting,
+  STUDY_KEY_POSITION, STUDY_WINDOW_LIGHT, studyDaylightPositions, studyRoomFrame, studyRoomLighting,
 } from '../src/three/environments/studyRoomLayout.ts'
+import { buildStudyDeskSculpture, STUDY_SCULPTURE_PERIOD } from '../src/three/environments/studyDeskSculpture.ts'
 import { buildStudyRoom } from '../src/three/environments/studyRoomModel.ts'
 import { createStudyPlasterBox, STUDY_BOARD_THICKNESS, STUDY_WALL_FACE } from '../src/three/environments/studyRoomMaterials.ts'
 import { createPaperGeometry, PAPER_SHAPE_COUNT } from '../src/three/paperGeometry.ts'
@@ -151,6 +152,73 @@ test('the window light projects onto the lower-left wall and desk with upper-rig
   light.dispose()
 })
 
+test('study daylight drifts within the original wall and desk light projection', () => {
+  assert.deepEqual(studyDaylightPositions(0), { sun: STUDY_KEY_POSITION, windowTarget: STUDY_WINDOW_LIGHT.target })
+  const light = new SpotLight('#fff', 1, STUDY_WINDOW_LIGHT.range, STUDY_WINDOW_LIGHT.angle)
+  light.position.set(...STUDY_WINDOW_LIGHT.position)
+  light.updateMatrixWorld()
+  const wall = new Vector3(-12, -5, 0)
+  const desktop = new Vector3(-10, STUDY_ROOM.desk.surface, 3)
+  try {
+    for (let seconds = 0; seconds < 1252; seconds += 4) {
+      const { sun, windowTarget } = studyDaylightPositions(seconds)
+      light.target.position.set(...windowTarget)
+      light.target.updateMatrixWorld()
+      light.shadow.updateMatrices(light)
+      const onWall = wall.clone().applyMatrix4(light.shadow.matrix)
+      const onDesk = desktop.clone().applyMatrix4(light.shadow.matrix)
+      assert.ok(onWall.x > 66 / 128 && onWall.x < 103 / 128 && onWall.y > 69 / 128 && onWall.y < 110 / 128)
+      assert.ok(onDesk.x > 66 / 128 && onDesk.x < 103 / 128 && onDesk.y > 18 / 128 && onDesk.y < 63 / 128)
+      assert.ok(new Vector3(...sun).distanceTo(new Vector3(...STUDY_KEY_POSITION)) < 1)
+    }
+    assert.notDeepEqual(studyDaylightPositions(60), studyDaylightPositions(0))
+  } finally {
+    light.dispose()
+  }
+})
+
+test('the sculpture rocks around its fixed base, loops, and stays clear of the board', () => {
+  const cutaway = createBoardCutaway()
+  const board = new Group()
+  const rig = buildStudyDeskSculpture(cutaway.planes)
+  const { sculpture } = rig
+  try {
+    const base = sculpture.getObjectByName('stationary black sculpture base')!
+    const pivot = sculpture.getObjectByName('brass balance pivot')!
+    const baseAtRest = base.getWorldPosition(new Vector3())
+    const orientationAtRest = pivot.quaternion.clone()
+    const bounds = new Box3()
+    for (const fraction of [0.25, 0.75, 1]) {
+      rig.update(STUDY_SCULPTURE_PERIOD * fraction)
+      assert.deepEqual(base.getWorldPosition(new Vector3()), baseAtRest)
+      assert.ok(fraction === 1 ? pivot.quaternion.angleTo(orientationAtRest) < 1e-7
+        : pivot.quaternion.angleTo(orientationAtRest) > 0.2)
+      bounds.setFromObject(sculpture, true)
+      assert.ok(bounds.min.x > 12 && bounds.max.x < STUDY_ROOM.desk.right)
+      assert.ok(bounds.min.z > STUDY_ROOM.desk.rear && bounds.max.z < STUDY_ROOM.desk.front)
+      assert.equal(bounds.min.y, STUDY_ROOM.desk.surface)
+
+      const vertex = new Vector3()
+      for (const [width, height] of [[1536, 1024], [1440, 900], [800, 640], [1720, 720]]) {
+        const { x, y, distance } = studyRoomFrame(width, height)!
+        cutaway.update(board, new Vector3(x, y, distance))
+        sculpture.traverse((object) => {
+          if (!(object instanceof Mesh)) return
+          const points = object.geometry.attributes.position
+          for (let i = 0; i < points.count; i++) {
+            vertex.fromBufferAttribute(points, i).applyMatrix4(object.matrixWorld)
+            assert.ok(cutaway.planes.some((plane) => plane.distanceToPoint(vertex) >= 0))
+          }
+        })
+      }
+    }
+    const ray = new Raycaster(baseAtRest.clone().add(new Vector3(0, 0.3, 21)), new Vector3(0, 0, -1))
+    assert.deepEqual(ray.intersectObject(sculpture), [])
+  } finally {
+    rig.dispose()
+  }
+})
+
 test('the stationary room builds finite batched geometry without participating in note raycasts', () => {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'document')
   const canvas = {
@@ -170,10 +238,13 @@ test('the stationary room builds finite batched geometry without participating i
     try {
       for (const name of ['recessed glass pane', 'distant trees through the window', 'oak desk and bookcase',
         'cloth, leather and paper book covers', 'staggered oak floorboards', 'pothos on the sill and bookshelf',
-        'plaster above the portrait workspace']) {
+        'plaster above the portrait workspace', 'kinetic desk sculpture']) {
         assert.ok(model.room.getObjectByName(name), name)
       }
       assert.equal(model.room.getObjectByName('foreground chair'), undefined)
+      const plants = model.room.getObjectByName('pothos on the sill and bookshelf')
+      assert.ok(plants instanceof Mesh && plants.customDepthMaterial instanceof MeshDepthMaterial)
+      assert.equal(plants.geometry.attributes.plantWind.count, plants.geometry.attributes.position.count)
       let drawMeshes = 0
       model.room.traverse((object) => {
         if (!(object instanceof Mesh)) return

@@ -1,7 +1,7 @@
 export type NoteColor = 'yellow' | 'pink' | 'green' | 'blue' | 'violet'
 export type InteractionMode = 'select' | 'pan' | 'orbit'
 export type Lighting = 'daylight' | 'warm'
-export type EnvironmentTheme = 'minimal' | 'study' | 'studio' | 'lab'
+export type EnvironmentTheme = 'minimal' | 'office' | 'study' | 'studio' | 'lab'
 export type WallShade = 'theme' | 'chalk' | 'ivory' | 'mist'
 export type EnvironmentAmbience = 'theme' | 'quiet' | 'airy'
 export type NoteTypography = 'handwritten' | 'sans'

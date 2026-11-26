@@ -80,6 +80,38 @@ test('an empty legacy wall stays empty and a new browser still starts with the c
   assert.deepEqual(fresh.writes, [])
 })
 
+test('Office Whiteboard is a per-board presentation choice across switches and refresh', () => {
+  const { open, data, read } = device(legacy)
+  const workspace = open()
+  const first = workspace.wall.getState()
+  first.updateNote(note.id, { title: 'Quarterly planning' })
+  const before = structuredClone(read().boards[FIRST_BOARD_ID])
+  first.setAppearance({ theme: 'office' })
+  const office = {
+    ...before,
+    presentation: { ...before.presentation, appearance: { ...before.presentation.appearance, theme: 'office' } },
+  }
+  assert.deepEqual(read().boards[FIRST_BOARD_ID], office)
+
+  const second = workspace.createBoard('Personal')!
+  workspace.switchBoard(second)
+  assert.equal(workspace.wall.getState().appearance.theme, 'minimal')
+  assert.deepEqual(workspace.wall.getState().notes, [])
+  workspace.switchBoard(FIRST_BOARD_ID)
+  first.undo()
+  assert.equal(workspace.wall.getState().notes[1].title, note.title)
+  assert.equal(workspace.wall.getState().appearance.theme, 'office')
+  first.redo()
+  assert.deepEqual(read().boards[FIRST_BOARD_ID], office)
+
+  const restored = open()
+  assert.deepEqual(restored.getState().boards[FIRST_BOARD_ID], office)
+  assert.equal(restored.wall.getState().appearance.theme, 'office')
+  restored.wall.getState().setAppearance({ theme: 'minimal' })
+  assert.deepEqual(restored.getState().boards[FIRST_BOARD_ID].document, office.document)
+  assert.equal(data.get(LEGACY_WALL_STORAGE_KEY), legacy)
+})
+
 test('new boards get independent blank documents, stable names, and display order across refresh', () => {
   const { data, open } = device(legacy)
   const workspace = open()

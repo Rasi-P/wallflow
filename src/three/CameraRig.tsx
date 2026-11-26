@@ -11,6 +11,7 @@ import { getStarterFrame } from './starterFrame'
 import { SAMPLE_NOTES } from '../utils/constants'
 import { positionWallFocus, resolveCameraFocus, wallFocusDistance } from './cameraFocus'
 import { compactStudyFrame, STUDY_ROOM_MAX_DISTANCE, studyRoomFrame } from './environments/studyRoomLayout'
+import { OFFICE_ROOM_MAX_DISTANCE, officeWhiteboardFrame } from './environments/officeWhiteboardLayout'
 
 function measureCompactInsets(canvas: HTMLCanvasElement) {
   const app = canvas.closest('.wallflow-app')
@@ -40,7 +41,7 @@ function homeTarget(mobile: boolean, starterX: number | undefined, starterY: num
   return new Vector3(0, 0.18, 0)
 }
 
-export function CameraRig({ wall, reducedMotion = false, studyRoom }: { wall: RefObject<Group | null>; reducedMotion?: boolean; studyRoom: boolean }) {
+export function CameraRig({ wall, reducedMotion = false, room }: { wall: RefObject<Group | null>; reducedMotion?: boolean; room: 'study' | 'office' | null }) {
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null)
   const camera = useThree((state) => state.camera)
   const canvas = useThree((state) => state.gl.domElement)
@@ -58,14 +59,15 @@ export function CameraRig({ wall, reducedMotion = false, studyRoom }: { wall: Re
     })
   })
   const starterFrame = starterWall ? getStarterFrame(width, height) : null
-  const roomFrame = studyRoom ? studyRoomFrame(width, height) : null
+  const roomFrame = room === 'office' ? officeWhiteboardFrame(width, height) : room === 'study' ? studyRoomFrame(width, height) : null
   const starterX = starterFrame?.x, starterY = starterFrame?.y
   const roomX = roomFrame?.x, roomY = roomFrame?.y
   const roomOverview = roomFrame !== null
-  const compact = studyRoom && !roomOverview
-  const layout = roomOverview ? 'room' : compact ? 'compact' : 'wall'
+  const compact = room !== null && !roomOverview
+  const layout = room ? `${room}-${roomOverview ? 'overview' : 'compact'}` : 'wall'
+  const roomLimit = room === 'office' ? OFFICE_ROOM_MAX_DISTANCE : STUDY_ROOM_MAX_DISTANCE
   const [compactLimit, setCompactLimit] = useState(MAX_CAMERA_DISTANCE)
-  const maxDistance = roomOverview ? STUDY_ROOM_MAX_DISTANCE : compact ? compactLimit : MAX_CAMERA_DISTANCE
+  const maxDistance = roomOverview ? roomLimit : compact ? compactLimit : MAX_CAMERA_DISTANCE
   const boardDistance = starterFrame?.distance ?? (mobile ? 14.6 : MathUtils.clamp(10.4 / (2 * Math.tan(MathUtils.degToRad(WALL_CAMERA_FOV / 2)) * aspect), 14.6, MAX_CAMERA_DISTANCE))
   const baseDistance = roomFrame?.distance ?? boardDistance
   const distanceRef = useRef(baseDistance)
@@ -84,9 +86,9 @@ export function CameraRig({ wall, reducedMotion = false, studyRoom }: { wall: Re
     return {
       target: homeTarget(mobile, starterX, starterY, roomX, roomY),
       distance: baseDistance,
-      limit: roomOverview ? STUDY_ROOM_MAX_DISTANCE : MAX_CAMERA_DISTANCE,
+      limit: roomOverview ? roomLimit : MAX_CAMERA_DISTANCE,
     }
-  }, [compact, width, height, canvas, mobile, starterX, starterY, roomX, roomY, baseDistance, roomOverview])
+  }, [compact, width, height, canvas, mobile, starterX, starterY, roomX, roomY, baseDistance, roomOverview, roomLimit])
 
   const updateZoomRange = useCallback((distance: number, limit: number) => {
     distanceRef.current = distance
@@ -95,10 +97,10 @@ export function CameraRig({ wall, reducedMotion = false, studyRoom }: { wall: Re
     if (compact) setCompactLimit(limit)
     useWallStore.getState().setZoomBounds([Math.round(distance / limit * 100), Math.round(distance / MIN_CAMERA_DISTANCE * 100)])
     if ('far' in camera && 'updateProjectionMatrix' in camera && typeof camera.updateProjectionMatrix === 'function') {
-      camera.far = compact ? Math.max(110, limit + 52) : 110
+      camera.far = compact ? Math.max(110, limit + 52) : room === 'office' ? 124 : 110
       camera.updateProjectionMatrix()
     }
-  }, [camera, compact])
+  }, [camera, compact, room])
 
   const constrain = useCallback(() => {
     const control = controls.current
@@ -122,7 +124,7 @@ export function CameraRig({ wall, reducedMotion = false, studyRoom }: { wall: Re
       camera.position.distanceToSquared(previous.position) < 0.001 && control.target.distanceToSquared(previous.target) < 0.001
     updateZoomRange(distance, limit)
     const { editingId, draggingId } = useWallStore.getState()
-    if (initializedCamera.current !== camera || previous?.layout !== layout || (studyRoom && wasAtHome && !editingId && !draggingId)) {
+    if (initializedCamera.current !== camera || previous?.layout !== layout || (room && wasAtHome && !editingId && !draggingId)) {
       initializedCamera.current = camera
       transition.current = null
       camera.position.copy(position)
@@ -133,7 +135,7 @@ export function CameraRig({ wall, reducedMotion = false, studyRoom }: { wall: Re
     previousHome.current = { layout, target, position }
     useWallStore.getState().setZoomPercent(Math.round(distance / (control?.getDistance() || distance) * 100))
     invalidate()
-  }, [camera, getHome, height, invalidate, layout, studyRoom, updateZoomRange, width])
+  }, [camera, getHome, height, invalidate, layout, room, updateZoomRange, width])
 
   useEffect(() => {
     const control = controls.current

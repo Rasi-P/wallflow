@@ -82,9 +82,11 @@ button:not(:disabled):active { transform: translateY(1px); }
 [data-tooltip] { position: relative; }
 [data-tooltip]::after { content: attr(data-tooltip); position: absolute; bottom: calc(100% + 12px); left: 50%; transform: translateX(-50%) translateY(3px); background: #3f453c; color: #fff; border: 1px solid #ffffff17; padding: 7px 10px; font: 400 12px "DM Sans", sans-serif; letter-spacing: 0; border-radius: 6px; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity 140ms, transform 140ms; z-index: 20; }
 [data-tooltip]:hover:not(:disabled)::after, [data-tooltip]:focus-visible::after { opacity: 1; transform: translateX(-50%) translateY(0); transition-delay: 400ms; }
-.header-actions [data-tooltip]::after, .board-navigation [data-tooltip]::after { bottom: auto; top: calc(100% + 12px); left: auto; right: 0; transform: translateY(-3px); }
+.header-actions [data-tooltip]::after, .board-navigation [data-tooltip]::after,
+.settings-modal > .modal-header [data-tooltip]::after { bottom: auto; top: calc(100% + 12px); left: auto; right: 0; transform: translateY(-3px); }
 .board-navigation [data-tooltip]:first-child::after { right: auto; left: 0; }
-:is(.header-actions, .board-navigation) [data-tooltip]:is(:hover, :focus-visible)::after { transform: translateY(0); }
+:is(.header-actions, .board-navigation) [data-tooltip]:is(:hover, :focus-visible)::after,
+.settings-modal > .modal-header [data-tooltip]:is(:hover, :focus-visible)::after { transform: translateY(0); }
 .onboarding-card {
   --card-top: 103px;
   position: absolute;
@@ -376,7 +378,24 @@ button:not(:disabled):active { transform: translateY(1px); }
 .search-result > span > span { display: block; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; }
 .field-label { display: block; font-size: 12px; font-weight: 500; color: var(--muted); margin: 22px 0 10px; }
 .text-input { width: 100%; border: 1px solid #dce2d3; background: var(--field); border-radius: 8px; font-size: 14px; padding: 12px 13px; color: #4c5940; }
-.settings-modal { --settings-padding: 24px; width: min(540px, calc(100vw - 32px)); padding: var(--settings-padding); }
+.modal.settings-modal {
+  --settings-padding: 24px;
+  inset: var(--wall-safe-top, 0px) var(--wall-safe-right, 0px) var(--wall-safe-bottom, 0px) var(--wall-safe-left, 0px);
+  width: min(540px, calc(100vw - 32px - var(--wall-safe-left, 0px) - var(--wall-safe-right, 0px)));
+  max-height: calc(100dvh - 48px - var(--wall-safe-top, 0px) - var(--wall-safe-bottom, 0px));
+  padding: 0;
+  overflow: hidden;
+}
+.settings-modal[open] { display: flex; flex-direction: column; }
+.settings-modal > .modal-header {
+  flex: none; margin: 0;
+  padding: calc(var(--settings-padding) - 4px) calc(var(--settings-padding) - 5px) 0 var(--settings-padding);
+}
+.settings-form { display: flex; flex-direction: column; min-height: 0; }
+.settings-content {
+  min-height: 0; overflow: hidden auto; overscroll-behavior-y: contain;
+  padding: 0 var(--settings-padding) 18px;
+}
 .settings-section { margin-top: 18px; }
 .settings-section h3 { font-size: 14px; font-weight: 700; margin-bottom: 9px; }
 .photo-theme-choices {
@@ -447,7 +466,7 @@ button:not(:disabled):active { transform: translateY(1px); }
 .toggle-label input:checked { background: #879a72; }
 .toggle-label input:checked::after { transform: translateX(14px); }
 .local-note { font-size: 11px; color: var(--muted); line-height: 1.6; border-top: 1px solid #e6eade; margin-top: 25px; padding-top: 18px; }
-.settings-footer { position: sticky; bottom: 0; margin: 8px calc(0px - var(--settings-padding)) calc(0px - var(--settings-padding)); padding: 9px var(--settings-padding) 12px; border-top: 1px solid var(--line); background: var(--panel); }
+.settings-footer { flex: none; position: relative; z-index: 1; padding: 9px var(--settings-padding) 12px; border-top: 1px solid var(--line); background: var(--panel); }
 .settings-save { display: flex; margin-left: auto; }
 .help-walkthrough { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
 .help-list { display: flex; flex-direction: column; gap: 17px; margin-top: 15px; }
@@ -534,7 +553,7 @@ kbd { border: 1px solid #dde4d2; padding: 0 4px; border-radius: 3px; margin-left
   .rotation-popover { right: 0; width: min(300px, calc(100vw - 30px - var(--wall-safe-left) - var(--wall-safe-right))); }
   .selection-actions { white-space: nowrap; }
   .modal { padding: 18px; }
-  .settings-modal { --settings-padding: 18px; }
+  .modal.settings-modal { --settings-padding: 18px; }
   .search-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .modal-header h2 { font-size: 18px; }
 }

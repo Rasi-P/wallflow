@@ -1,7 +1,8 @@
+import { Check } from 'lucide-react'
 import { useWallStore } from '../../stores/wallStore'
-import type { NoteDefaults } from '../../types/wall'
+import type { NoteDefaults, PhotoWorkspace } from '../../types/wall'
 import { DEFAULT_NOTE_PREFERENCES } from '../../utils/appearance'
-import { PHOTO_WORKSPACES, readPhotoWorkspace } from '../../utils/photoWorkspaces'
+import { PHOTO_WORKSPACES } from '../../utils/photoWorkspaces'
 import { NoteColorPicker } from './AppearancePickers'
 
 export function AppearanceSettings() {
@@ -12,13 +13,27 @@ export function AppearanceSettings() {
   return <>
     <section className="settings-section" aria-labelledby="appearance-heading">
       <h3 id="appearance-heading">Themes and appearance</h3>
-      <div className="appearance-fields">
-        <label>Photo workspace<select value={workspace} onChange={(event) => {
-          const next = readPhotoWorkspace(event.currentTarget.value)
-          actions.setAppearance({ photoWorkspace: next === 'professor' ? undefined : next })
-        }}>
-          {Object.entries(PHOTO_WORKSPACES).map(([id, { name }]) => <option key={id} value={id}>{name}</option>)}
-        </select></label>
+      <div className="photo-theme-choices" role="group" aria-label="Photo workspace">
+        {(Object.keys(PHOTO_WORKSPACES) as PhotoWorkspace[]).map((id) => {
+          const { name, asset } = PHOTO_WORKSPACES[id]
+          const selected = workspace === id
+          const preview = id === 'professor' ? 'wide' : 'tablet-wide'
+          return <button key={id} type="button" className="photo-theme-card" aria-pressed={selected}
+            onClick={() => {
+              if (!selected) actions.setAppearance({ photoWorkspace: id === 'professor' ? undefined : id })
+            }}>
+            <span className="photo-theme-image" data-workspace={id} aria-hidden="true">
+              <picture>
+                {id === 'professor' && <source media="(max-width: 560px)" srcSet={`/environments/${asset}-tablet.jpg`} />}
+                <img src={`/environments/${asset}-${preview}.jpg`} alt="" loading="lazy" decoding="async" draggable={false}
+                  onError={(event) => { event.currentTarget.style.visibility = 'hidden' }}
+                  onLoad={(event) => { event.currentTarget.style.visibility = 'visible' }} />
+              </picture>
+              {selected && <span className="photo-theme-check"><Check size={11} /></span>}
+            </span>
+            <strong>{name}</strong>
+          </button>
+        })}
       </div>
     </section>
     <section className="settings-section" aria-labelledby="note-defaults-heading">

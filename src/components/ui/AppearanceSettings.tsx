@@ -1,18 +1,24 @@
 import { useWallStore } from '../../stores/wallStore'
 import type { NoteDefaults } from '../../types/wall'
 import { DEFAULT_NOTE_PREFERENCES } from '../../utils/appearance'
+import { PHOTO_WORKSPACES, readPhotoWorkspace } from '../../utils/photoWorkspaces'
 import { NoteColorPicker } from './AppearancePickers'
 
 export function AppearanceSettings() {
   const defaults = useWallStore((state) => state.noteDefaults)
+  const workspace = useWallStore((state) => state.appearance.photoWorkspace ?? 'professor')
   const actions = useWallStore.getState()
 
   return <>
     <section className="settings-section" aria-labelledby="appearance-heading">
       <h3 id="appearance-heading">Themes and appearance</h3>
-      <div className="current-photo-template">
-        <img src="/environments/professors-study-wide.jpg" alt="" loading="lazy" />
-        <span>Professor’s Study</span>
+      <div className="appearance-fields">
+        <label>Photo workspace<select value={workspace} onChange={(event) => {
+          const next = readPhotoWorkspace(event.currentTarget.value)
+          actions.setAppearance({ photoWorkspace: next === 'professor' ? undefined : next })
+        }}>
+          {Object.entries(PHOTO_WORKSPACES).map(([id, { name }]) => <option key={id} value={id}>{name}</option>)}
+        </select></label>
       </div>
     </section>
     <section className="settings-section" aria-labelledby="note-defaults-heading">

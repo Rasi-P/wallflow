@@ -10,7 +10,7 @@ type StudyView = { content: Point2; scale: number }
 type Paper = { box: StudyOpening; position: Point2; width: number; height: number }
 
 // The empty plaster in the portrait assets, expressed in uncropped image coordinates.
-const plaster = { left: 0.16, right: 0.84, top: 0.195, bottom: 0.855 }
+const studyPlaster = { left: 0.16, right: 0.84, top: 0.195, bottom: 0.855 }
 
 function rectangle([x, y]: Point2, width: number, height: number): StudyOpening {
   return { left: x - width / 2, right: x + width / 2, top: y + height / 2, bottom: y - height / 2 }
@@ -112,7 +112,7 @@ function chooseCluster(papers: Paper[], ideal: number, areaWidth: number, areaHe
   return best
 }
 
-export function mobileStudyFrame(width: number, height: number, document: WallDocument, insets: WallFrameInsets) {
+export function mobileStudyFrame(width: number, height: number, document: WallDocument, insets: WallFrameInsets, plaster = studyPlaster) {
   const left = Math.max(width * plaster.left, insets.left) + 8
   const right = Math.min(width * plaster.right, width - insets.right) - 8
   const top = Math.max(height * plaster.top, insets.top) + 8

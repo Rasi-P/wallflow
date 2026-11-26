@@ -2,7 +2,7 @@ import { CanvasTexture, MeshBasicMaterial, PlaneGeometry, SRGBColorSpace } from 
 
 export function createPaperAttachments() {
   const geometry = new PlaneGeometry(0.9, 0.52)
-  const materials = [drawAttachment(drawTape), drawAttachment(drawPin)]
+  const materials = [drawAttachment(drawTape), drawAttachment(drawPin), drawAttachment(drawClip)]
   return {
     geometry,
     materials,
@@ -70,4 +70,28 @@ function drawPin(ink: CanvasRenderingContext2D) {
   ink.beginPath()
   ink.arc(90, 48, 22, 0, 2 * Math.PI)
   ink.fill()
+}
+
+function drawClip(ink: CanvasRenderingContext2D) {
+  const wire = new Path2D('M 80,76 L 80,30 C 80,8 106,8 106,30 L 106,79 C 106,98 87,98 87,79 L 87,33 C 87,22 99,22 99,33 L 99,70')
+  ink.lineCap = 'round'
+  ink.save()
+  ink.filter = 'blur(3px)'
+  ink.translate(3, 4)
+  ink.strokeStyle = '#38342f8c'
+  ink.lineWidth = 8
+  ink.stroke(wire)
+  ink.restore()
+
+  ink.strokeStyle = '#555c60'
+  ink.lineWidth = 5.4
+  ink.stroke(wire)
+  const steel = ink.createLinearGradient(78, 0, 109, 31)
+  steel.addColorStop(0, '#f4f1e6')
+  steel.addColorStop(0.48, '#a2a9ab')
+  steel.addColorStop(0.73, '#fbfaf4')
+  steel.addColorStop(1, '#afb8ba')
+  ink.strokeStyle = steel
+  ink.lineWidth = 3.2
+  ink.stroke(wire)
 }

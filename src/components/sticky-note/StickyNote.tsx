@@ -39,14 +39,15 @@ interface NoteProps {
   paperMotions: Set<PaperMotionFrame>
   attachmentGeometry: PlaneGeometry
   attachmentMaterial?: MeshBasicMaterial
-  isTape: boolean
+  attachmentKind: 'tape' | 'pin' | 'clip'
   phone?: boolean
+  largerInk?: boolean
   bindSurface: BindNoteSurface
 }
 
 const ignoreRaycast = () => null
 
-export const StickyNote = memo(function StickyNote({ note, visible, depth, paperGeometry, contactGeometry, contactMaterial, paperMotions, bindSurface, attachmentGeometry, attachmentMaterial, isTape, phone }: NoteProps) {
+export const StickyNote = memo(function StickyNote({ note, visible, depth, paperGeometry, contactGeometry, contactMaterial, paperMotions, bindSurface, attachmentGeometry, attachmentMaterial, attachmentKind, phone, largerInk }: NoteProps) {
   const group = useRef<Group>(null)
   const footprint = useRef<Group>(null)
   const paper = useRef<Mesh>(null)
@@ -71,9 +72,9 @@ export const StickyNote = memo(function StickyNote({ note, visible, depth, paper
     return () => { surface.current = null; binding.dispose() }
   }, [bindSurface])
   useLayoutEffect(() => {
-    surface.current?.update({ title, body, color, doodle, inlineSketches, sketchAspect, task, typography, phone: phone || undefined })
+    surface.current?.update({ title, body, color, doodle, inlineSketches, sketchAspect, task, typography, phone: phone || undefined, largerInk })
     invalidate()
-  }, [bindSurface, title, body, color, doodle, inlineSketches, sketchAspect, task, typography, phone, invalidate])
+  }, [bindSurface, title, body, color, doodle, inlineSketches, sketchAspect, task, typography, phone, largerInk, invalidate])
 
   const frame = useCallback<PaperMotionFrame>((delta) => {
     const sheet = paper.current
@@ -229,8 +230,9 @@ export const StickyNote = memo(function StickyNote({ note, visible, depth, paper
         onPointerOver={(e) => { if (useWallStore.getState().mode === 'select') { e.stopPropagation(); gl.domElement.style.cursor = 'grab' } }}
         onPointerOut={() => { if (!drag.current) gl.domElement.style.cursor = '' }}>
         <meshStandardMaterial ref={material} roughness={0.97} side={DoubleSide} />
-        {attachmentMaterial && <mesh position={[isTape ? -0.16 : 0.04, NOTE_HEIGHT / 2 - 0.04, 0.00065]}
-          rotation={[0, 0, isTape ? 0.035 : 0]} geometry={attachmentGeometry} material={attachmentMaterial} raycast={ignoreRaycast} />}
+        {attachmentMaterial && <mesh position={[attachmentKind === 'tape' ? -0.16 : attachmentKind === 'clip' ? 0.89 : 0.04, NOTE_HEIGHT / 2 - 0.04, 0.00065]}
+          rotation={[0, 0, attachmentKind === 'tape' ? 0.035 : attachmentKind === 'clip' ? -0.17 : 0]}
+          geometry={attachmentGeometry} material={attachmentMaterial} raycast={ignoreRaycast} />}
       </mesh>
       {selected && !editing && <mesh position={[0, 0, depth - 0.015]} raycast={() => null}>
         <planeGeometry args={[NOTE_WIDTH + 0.078, NOTE_HEIGHT + 0.078]} />

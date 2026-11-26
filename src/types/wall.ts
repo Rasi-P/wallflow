@@ -1,6 +1,7 @@
 import type { SketchId } from '../utils/sketches.ts'
 
-export type NoteColor = 'yellow' | 'pink' | 'green' | 'blue' | 'violet'
+export type NoteColor = 'yellow' | 'pink' | 'green' | 'blue' | 'violet' | 'cream' | 'mint' | 'white' | 'grey'
+export type PhotoWorkspace = 'professor' | 'teacher' | 'scientist'
 export type InteractionMode = 'select' | 'pan' | 'orbit'
 export type Lighting = 'daylight' | 'warm'
 export type EnvironmentTheme = 'minimal' | 'office' | 'study' | 'studio' | 'lab'
@@ -13,6 +14,7 @@ export type Point2 = [number, number]
 export type TaskPriority = 'low' | 'medium' | 'high'
 
 export interface WallAppearance {
+  photoWorkspace?: Exclude<PhotoWorkspace, 'professor'>
   theme: EnvironmentTheme
   shade: WallShade
   intensity: number

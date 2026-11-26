@@ -5,6 +5,7 @@ import { FIRST_BOARD_ID, LEGACY_WALL_STORAGE_KEY, WORKSPACE_STORAGE_KEY } from '
 import type { Board, SavedWorkspace } from '../src/types/workspace.ts'
 import type { StickyNoteData, WallDocument } from '../src/types/wall.ts'
 import { SAMPLE_NOTES } from '../src/utils/constants.ts'
+import { photoPaperColors } from '../src/utils/photoWorkspaces.ts'
 import { deliverWorkspaceReminders } from '../src/utils/reminders.ts'
 import type { ReminderNotifications } from '../src/utils/reminders.ts'
 
@@ -110,6 +111,57 @@ test('Office Whiteboard is a per-board presentation choice across switches and r
   restored.wall.getState().setAppearance({ theme: 'minimal' })
   assert.deepEqual(restored.getState().boards[FIRST_BOARD_ID].document, office.document)
   assert.equal(data.get(LEGACY_WALL_STORAGE_KEY), legacy)
+})
+
+test('photo workspace selection round-trips independently without changing notes, defaults, or undo history', () => {
+  const { open, read, data } = device(legacy)
+  const workspace = open()
+  const original = workspace.wall.getState()
+  const second = workspace.createBoard('Thinking lab')!
+  workspace.switchBoard(FIRST_BOARD_ID)
+  original.updateNote(note.id, { title: 'Outline 📝', doodle: 'open-book', color: 'cream' })
+  const before = structuredClone(read().boards[FIRST_BOARD_ID])
+
+  original.setAppearance({ photoWorkspace: 'teacher' })
+  const teaching = structuredClone(read().boards[FIRST_BOARD_ID])
+  assert.deepEqual(teaching, {
+    ...before, presentation: { ...before.presentation, appearance: { ...before.presentation.appearance, photoWorkspace: 'teacher' } },
+  })
+  original.undo()
+  assert.deepEqual(workspace.wall.getState().notes[1], note)
+  assert.equal(workspace.wall.getState().appearance.photoWorkspace, 'teacher')
+  original.redo()
+  assert.deepEqual(read().boards[FIRST_BOARD_ID], teaching)
+
+  workspace.switchBoard(second)
+  assert.equal(workspace.wall.getState().appearance.photoWorkspace, undefined)
+  workspace.wall.getState().setAppearance({ photoWorkspace: 'scientist' })
+  assert.deepEqual(workspace.wall.getState().notes, [])
+  const restored = open()
+  assert.equal(restored.wall.getState().appearance.photoWorkspace, 'scientist')
+  restored.switchBoard(FIRST_BOARD_ID)
+  assert.deepEqual(restored.getState().boards[FIRST_BOARD_ID], teaching)
+  restored.wall.getState().setAppearance({ photoWorkspace: undefined })
+  assert.deepEqual(read().boards[FIRST_BOARD_ID], before)
+  assert.equal(read().version, 2)
+  assert.equal(data.get(LEGACY_WALL_STORAGE_KEY), legacy)
+})
+
+test('an obsolete photo workspace restores Professor’s Study and keeps the existing paper color', () => {
+  const { open, read, data } = device(legacy)
+  open()
+  const fixture = read()
+  const savedBoard = fixture.boards[FIRST_BOARD_ID]
+  Object.assign(savedBoard.presentation.appearance, { photoWorkspace: 'toString' })
+  savedBoard.document.notes[1].color = 'mint'
+  data.set(WORKSPACE_STORAGE_KEY, JSON.stringify(fixture))
+  const restored = open().wall.getState()
+  assert.deepEqual(restored.appearance, presentation.appearance)
+  assert.equal(restored.notes[1].color, 'mint')
+  assert.deepEqual(photoPaperColors('professor', 'yellow'), ['yellow', 'pink', 'green', 'blue', 'violet'])
+  assert.ok(photoPaperColors('professor', 'mint').includes('mint'))
+  assert.ok(photoPaperColors('teacher', 'cream').includes('cream'))
+  assert.ok(photoPaperColors('scientist', 'grey').includes('white'))
 })
 
 test('new boards get independent blank documents, stable names, and display order across refresh', () => {

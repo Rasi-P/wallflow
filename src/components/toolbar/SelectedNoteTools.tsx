@@ -1,15 +1,16 @@
 import { useCallback, useRef, useState } from 'react'
 import { Archive, Check, Copy, ListChecks, LocateFixed, Minus, Palette, PencilLine, Plus, RotateCw, Scaling, Trash2, X } from 'lucide-react'
 import { useWallStore } from '../../stores/wallStore'
-import type { NoteColor } from '../../types/wall'
 import { MAX_NOTES, NOTE_COLORS, NOTE_HEIGHT, NOTE_WIDTH } from '../../utils/constants'
 import { getNoteSize } from '../../utils/noteDimensions'
 import { IconButton } from '../ui/IconButton'
 import { useStudyPhone } from '../../hooks/useStudyPhone'
 import { useDismissiblePopover } from '../../hooks/useDismissiblePopover'
+import { photoPaperColors } from '../../utils/photoWorkspaces'
 
 export function SelectedNoteTools({ id, count }: { id: string; count: number }) {
   const note = useWallStore((state) => state.notes.find((entry) => entry.id === id))
+  const workspace = useWallStore((state) => state.appearance.photoWorkspace ?? 'professor')
   const sections = useWallStore((state) => state.sections)
   const phone = useStudyPhone()
   const [panel, setPanel] = useState<'color' | 'size' | 'tasks' | null>(null)
@@ -28,7 +29,7 @@ export function SelectedNoteTools({ id, count }: { id: string; count: number }) 
 
   return <div className="selected-note-tools">
     {panel === 'color' && <div ref={popover} id="note-action-popover" className="note-action-popover color-swatches" role="group" aria-label="Note colors">
-      {(Object.keys(NOTE_COLORS) as NoteColor[]).map((color) => <button type="button" key={color}
+      {photoPaperColors(workspace, note.color).map((color) => <button type="button" key={color}
         className={`color-swatch ${note.color === color ? 'is-selected' : ''}`}
         style={{ '--swatch': NOTE_COLORS[color].swatch } as React.CSSProperties}
         aria-label={NOTE_COLORS[color].label} aria-pressed={note.color === color}

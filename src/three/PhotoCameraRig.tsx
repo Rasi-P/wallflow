@@ -44,8 +44,8 @@ function measureInsets(canvas: HTMLCanvasElement) {
   }
 }
 
-export function PhotoCameraRig({ phone, reducedMotion, onStudyOpening }: {
-  phone: boolean; reducedMotion: boolean; onStudyOpening: (opening: StudyOpening | null) => void
+export function PhotoCameraRig({ phone, plaster, reducedMotion, onStudyOpening }: {
+  phone: boolean; plaster?: StudyOpening; reducedMotion: boolean; onStudyOpening: (opening: StudyOpening | null) => void
 }) {
   const control = useRef<ComponentRef<typeof OrbitControls>>(null)
   const camera = useThree((state) => state.camera) as OrthographicCamera
@@ -84,7 +84,7 @@ export function PhotoCameraRig({ phone, reducedMotion, onStudyOpening }: {
   const measureFrame = useCallback(() => {
     const document = useWallStore.getState()
     const insets = measureInsets(canvas)
-    const frame = phone ? mobileStudyFrame(width, height, document, insets) : photoWallFrame(width, height, document, insets)
+    const frame = phone ? mobileStudyFrame(width, height, document, insets, plaster) : photoWallFrame(width, height, document, insets)
     framing.current = frame
     if (control.current) {
       control.current.minZoom = frame.min
@@ -92,7 +92,7 @@ export function PhotoCameraRig({ phone, reducedMotion, onStudyOpening }: {
     }
     useWallStore.getState().setZoomBounds([Math.round(frame.min / frame.scale * 100), Math.round(frame.max / frame.scale * 100)])
     return frame
-  }, [canvas, height, phone, width])
+  }, [canvas, height, phone, plaster, width])
 
   const preparePreset = useCallback((frame: Frame, preset: Preset): PendingView => {
     const opening = phone && preset === 'default' ? frame.opening ?? null : null

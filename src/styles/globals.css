@@ -552,14 +552,11 @@ kbd { border: 1px solid #dde4d2; padding: 0 4px; border-radius: 3px; margin-left
 .photo-workspace .wall-loading { background: transparent; }
 .wallflow-app .app-footer { color: #38271d; }
 @media (max-aspect-ratio: 1/1) {
-  .photo-workspace-plate img { top: -4.4%; height: 104.4%; object-position: center bottom; }
+  .photo-workspace-plate[data-photo="professor"] img { top: -4.4%; height: 104.4%; object-position: center bottom; }
 }
 .photo-view-tools { display: flex; align-items: center; gap: 9px; }
 .photo-view-tools .mode-switcher { padding-left: 8px; border-left: 1px solid var(--line); }
 .photo-view-tools .mode-switcher .icon-button { width: 37px; height: 37px; }
-.current-photo-template { display: grid; gap: 8px; padding: 7px; border: 1px solid var(--line); border-radius: 11px; font-size: 13px; font-weight: 650; }
-.current-photo-template img { width: 100%; height: 84px; object-fit: cover; object-position: center 80%; border-radius: 6px; }
-.current-photo-template span { padding: 0 4px 2px; }
 @media (max-width: 700px) {
   .floating-toolbar:has(.photo-view-tools) {
     display: grid;
@@ -593,7 +590,7 @@ kbd { border: 1px solid #dde4d2; padding: 0 4px; border-radius: 3px; margin-left
     --study-header-top: clamp(46px, 9dvh, 86px);
     --study-toolbar-bottom: calc(max(36px, 7.1dvh) + var(--wall-safe-bottom));
   }
-  .photo-workspace-plate img { inset: 0; height: 100%; object-fit: fill; }
+  .photo-workspace-plate[data-photo] img { inset: 0; height: 100%; object-fit: fill; }
   .app-header {
     height: calc(var(--study-header-top) + 88px + var(--wall-safe-top));
     padding-top: calc(var(--study-header-top) + var(--wall-safe-top));

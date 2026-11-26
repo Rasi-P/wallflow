@@ -19,9 +19,10 @@ import { SectionMarker } from './SectionMarker'
 import { createPaperAttachments } from '../../three/paperAttachments'
 import { studyNoteFitsOpening, studySectionFitsOpening } from '../../three/mobileStudyFrame'
 import type { StudyOpening } from '../../three/mobileStudyFrame'
+import type { PhotoWorkspace } from '../../types/wall'
 
-export function Wall({ group, prototypeSurface, phone, studyOpening }: {
-  group: RefObject<Group | null>; prototypeSurface?: BindNoteSurface | null; phone?: boolean; studyOpening: StudyOpening | null
+export function Wall({ group, prototypeSurface, phone, studyOpening, workspace }: {
+  group: RefObject<Group | null>; prototypeSurface?: BindNoteSurface | null; phone?: boolean; studyOpening: StudyOpening | null; workspace: PhotoWorkspace
 }) {
   const invalidate = useThree((state) => state.invalidate)
   const allNotes = useWallStore((s) => s.notes)
@@ -68,9 +69,12 @@ export function Wall({ group, prototypeSurface, phone, studyOpening }: {
       {visibleSections.map((section) => <SectionMarker key={section.id} section={section} geometry={sectionGeometry} />)}
       {notes.map((note, index) => {
         const shape = paperShapeForId(note.id)
+        const isClip = workspace !== 'professor' && shape === 0
         return <StickyNote key={note.id} note={note} visible={visibleIds.has(note.id)} depth={noteLayerDepth(index)} paperGeometry={paperShapes[shape]}
           contactGeometry={contactGeometry} contactMaterial={contactMaterial} paperMotions={paperMotions} bindSurface={bindSurface}
-          phone={phone} attachmentGeometry={attachments.geometry} attachmentMaterial={attachments.materials[shape - 1]} isTape={shape === 1} />
+          phone={phone} largerInk={phone && workspace !== 'professor'}
+          attachmentGeometry={attachments.geometry} attachmentMaterial={attachments.materials[isClip ? 2 : shape - 1]}
+          attachmentKind={isClip ? 'clip' : shape === 1 ? 'tape' : 'pin'} />
       })}
     </group>
   )

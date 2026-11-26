@@ -30,6 +30,8 @@ export function NoteEditor({ note, anchor, registerAnchor }: {
   const savedCursor = useRef<Cursor>({ field: 'title', start: note.title.length, end: note.title.length })
   const nextCursor = useRef<Cursor | null>(null)
   const { paper, ink } = NOTE_COLORS[note.color]
+  const usePhotoPaperLettering = useWallStore((state) => state.appearance.photoWorkspace !== undefined)
+  const titleFont = NOTE_TITLE_FONTS[note.typography ?? 'handwritten']
   const sketchName = isSketchId(note.doodle) ? SKETCHES[note.doodle].name : note.doodle
 
   function remember(field: TextField, element: HTMLTextAreaElement) {
@@ -123,13 +125,13 @@ export function NoteEditor({ note, anchor, registerAnchor }: {
       useWallStore.getState().finishEditing(action === 'cancel-empty')
     }}>
     <textarea ref={titleInput} aria-label="Note title" className="inline-note-title" rows={2} maxLength={MAX_TITLE_LENGTH}
-      style={{ fontFamily: NOTE_TITLE_FONTS[note.typography ?? 'handwritten'] }}
+      style={{ fontFamily: titleFont }}
       onFocus={(event) => remember('title', event.currentTarget)}
       onSelect={(event) => remember('title', event.currentTarget)}
       onBlur={(event) => remember('title', event.currentTarget)}
       placeholder="Note title" value={note.title} onChange={(event) => useWallStore.getState().writeNoteText(note.id, { title: event.target.value })} />
     <textarea ref={bodyInput} aria-label="Note description" className="inline-note-body" rows={4} maxLength={MAX_BODY_LENGTH}
-      style={{ fontFamily: NOTE_BODY_FONT }}
+      style={{ fontFamily: usePhotoPaperLettering ? titleFont : NOTE_BODY_FONT }}
       onFocus={(event) => remember('body', event.currentTarget)}
       onSelect={(event) => remember('body', event.currentTarget)}
       onBlur={(event) => remember('body', event.currentTarget)}

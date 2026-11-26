@@ -145,7 +145,7 @@ export const NOTE_TEXTURE_SIZE = 1024
 export const DEFAULT_NOTE_TITLE = 'A fresh little thought.'
 export const DEFAULT_NOTE_BODY = 'Double-click to make it yours.'
 export type NoteInk = Pick<StickyNoteData, 'title' | 'body' | 'doodle' | 'typography' | 'inlineSketches'> & {
-  task?: TaskInk; sketchAspect?: number; phone?: true
+  task?: TaskInk; sketchAspect?: number; phone?: true; largerInk?: boolean
 }
 export type NoteArtwork = NoteInk & Pick<StickyNoteData, 'color'>
 let paperFinish: HTMLCanvasElement | undefined
@@ -195,12 +195,12 @@ export function paintNoteInk(ctx: CanvasRenderingContext2D, note: NoteInk, ink: 
   const width = 800
   const corner = isSketchId(note.doodle) ? note.doodle : undefined
   const aspect = note.sketchAspect ?? 1
-  const titleSize = note.phone ? 111 : 95
+  const titleSize = note.largerInk ? 124 : note.phone ? 111 : 95
   ctx.font = `700 ${titleSize}px ${titleFont}`
   let titleWriter = lineWriter(ctx, titleSize, note.inlineSketches, aspect)
   let titleLines = wrap(titleWriter, title, width)
   if (titleLines.length > 2) {
-    const reduced = note.phone ? 89 : 77
+    const reduced = note.largerInk ? 97 : note.phone ? 89 : 77
     ctx.font = `700 ${reduced}px ${titleFont}`
     titleWriter = lineWriter(ctx, reduced, note.inlineSketches, aspect)
     titleLines = wrap(titleWriter, title, width)
@@ -208,17 +208,17 @@ export function paintNoteInk(ctx: CanvasRenderingContext2D, note: NoteInk, ink: 
   let y = note.phone ? 171 : 175
   for (const [index, line] of titleLines.slice(0, 3).entries()) {
     titleWriter.fill(index === 2 && titleLines.length > 3 ? ellipsize(titleWriter, line, width) : line, 108, y, width)
-    y += note.phone ? 111 : 105
+    y += note.largerInk ? 119 : note.phone ? 111 : 105
   }
   y += 25
   const body = note.body || (note.task ? '' : DEFAULT_NOTE_BODY)
-  const bodySize = note.phone ? 84 : 62
+  const bodySize = note.largerInk ? 91 : note.phone ? 84 : 62
   const bodyWeight = note.phone ? 600 : 500
   ctx.font = `${bodyWeight} ${bodySize}px ${bodyFont}`
   let bodyWriter = lineWriter(ctx, bodySize, note.inlineSketches, aspect)
   let bodyLines = wrap(bodyWriter, body, width)
   let lineHeight = note.phone ? 94 : 79
-  const bodyLimit = note.task?.rows.length ? 590 : corner ? 736 : 846
+  const bodyLimit = note.task?.rows.length ? (note.largerInk ? 552 : 590) : corner ? 736 : 846
   if (y + (bodyLines.length - 1) * lineHeight > bodyLimit) {
     const reduced = note.phone ? 67 : 52
     ctx.font = `${bodyWeight} ${reduced}px ${bodyFont}`
@@ -234,7 +234,7 @@ export function paintNoteInk(ctx: CanvasRenderingContext2D, note: NoteInk, ink: 
   if (note.task) {
     if (note.doodle && !corner && !note.task.rows.length && y < 690) drawDoodle(ctx, note.doodle, 750, 730)
     const firstRow = Math.min(note.phone ? 630 : 657, Math.max(335, y + 20))
-    paintTaskInk(ctx, note.task, bodyFont, width, Boolean(corner), firstRow, note.phone)
+    paintTaskInk(ctx, note.task, bodyFont, width, Boolean(corner), firstRow, note)
   } else if (note.doodle && !corner && y < 770) {
     drawDoodle(ctx, note.doodle, 750, 805)
   }
@@ -244,13 +244,13 @@ export function paintNoteInk(ctx: CanvasRenderingContext2D, note: NoteInk, ink: 
   }
 }
 
-function paintTaskInk(ctx: CanvasRenderingContext2D, task: TaskInk, font: string, width: number, corner: boolean, firstRow: number, phone?: true) {
-  const fontSize = phone ? 86 : 59
+function paintTaskInk(ctx: CanvasRenderingContext2D, task: TaskInk, font: string, width: number, corner: boolean, firstRow: number, { phone, largerInk }: NoteInk) {
+  const fontSize = largerInk ? 93 : phone ? 86 : 59
   const boxSize = phone ? 39 : 32
   ctx.font = `${phone ? 600 : 500} ${fontSize}px ${font}`
   ctx.lineWidth = 4
   for (const [index, row] of task.rows.entries()) {
-    const y = firstRow + index * (phone ? 86 : 68)
+    const y = firstRow + index * (largerInk ? 96 : phone ? 86 : 68)
     ctx.strokeRect(110, y - boxSize - 2, boxSize, boxSize)
     if (row.done) {
       ctx.beginPath()

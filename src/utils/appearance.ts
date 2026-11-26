@@ -1,5 +1,6 @@
 import type { EnvironmentAmbience, EnvironmentTheme, Lighting, NewNoteSize, NoteDefaults, NoteTypography, WallAppearance, WallShade } from '../types/wall.ts'
 import { NOTE_COLORS } from './constants.ts'
+import { readPhotoWorkspace } from './photoWorkspaces.ts'
 
 export const WALL_SHADES: Record<WallShade, string> = {
   theme: 'Theme shade', chalk: 'Soft chalk', ivory: 'Warm ivory', mist: 'Cool mist',
@@ -92,8 +93,11 @@ export function isNoteTypography(value: unknown): value is NoteTypography {
 }
 
 export function readWallAppearance(value: unknown): WallAppearance {
-  const { theme, shade, intensity, ambience } = readRecord(value)
+  const saved = readRecord(value)
+  const { theme, shade, intensity, ambience } = saved
+  const photoWorkspace = readPhotoWorkspace(saved.photoWorkspace)
   return {
+    ...(photoWorkspace !== 'professor' && { photoWorkspace }),
     theme: hasChoice(THEME_PRESETS, theme) ? theme : DEFAULT_APPEARANCE.theme,
     shade: hasChoice(WALL_SHADES, shade) ? shade : DEFAULT_APPEARANCE.shade,
     intensity: typeof intensity === 'number' && Number.isFinite(intensity)

@@ -107,7 +107,7 @@ export function createPaperInkSurface(): BindNoteSurface {
         const key = JSON.stringify([
           artwork.title || DEFAULT_NOTE_TITLE,
           artwork.task ? artwork.body : artwork.body || DEFAULT_NOTE_BODY,
-          artwork.doodle, artwork.task, artwork.typography ?? 'handwritten', artwork.inlineSketches, artwork.sketchAspect, artwork.phone,
+          artwork.doodle, artwork.task, artwork.typography ?? 'handwritten', artwork.inlineSketches, artwork.sketchAspect, artwork.phone, artwork.largerInk,
         ])
         if (mask?.key === key) return
 

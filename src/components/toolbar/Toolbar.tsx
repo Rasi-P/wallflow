@@ -8,6 +8,7 @@ import { SelectedNoteTools } from './SelectedNoteTools'
 import { countActiveNotes } from '../../utils/noteTasks'
 import { useStudyPhone } from '../../hooks/useStudyPhone'
 import { useDismissiblePopover } from '../../hooks/useDismissiblePopover'
+import { photoPaperColors } from '../../utils/photoWorkspaces'
 
 export function Toolbar() {
   const past = useWallStore((s) => s.past.length)
@@ -46,8 +47,9 @@ export function Toolbar() {
 function WallColors({ color, selected, onChange = useWallStore.getState().chooseColor }: {
   color: NoteColor; selected: boolean; onChange?: (color: NoteColor) => void
 }) {
+  const workspace = useWallStore((s) => s.appearance.photoWorkspace ?? 'professor')
   return <div className="color-swatches" role="group" aria-label={selected ? 'Selected note color' : 'New note color'}>
-    {(Object.keys(NOTE_COLORS) as NoteColor[]).map((key) => <button key={key} type="button" className={`color-swatch ${color === key ? 'is-selected' : ''}`}
+    {photoPaperColors(workspace, color).map((key) => <button key={key} type="button" className={`color-swatch ${color === key ? 'is-selected' : ''}`}
       style={{ '--swatch': NOTE_COLORS[key].swatch } as React.CSSProperties} aria-label={NOTE_COLORS[key].label} aria-pressed={color === key}
       data-tooltip={NOTE_COLORS[key].label} onClick={() => onChange(key)}><span className="swatch-dot">{color === key && <Check size={11} aria-hidden="true" />}</span></button>)}
   </div>

@@ -6,6 +6,10 @@ export const NOTE_COLORS: Record<NoteColor, { label: string; paper: string; ink:
   green: { label: 'Sage green', paper: '#c9dbb6', ink: '#35482e', swatch: '#bfd0a9' },
   blue: { label: 'Sky blue', paper: '#bdd5e4', ink: '#304757', swatch: '#b5cedf' },
   violet: { label: 'Soft lilac', paper: '#d8c9e5', ink: '#493954', swatch: '#cfbbdf' },
+  cream: { label: 'Warm cream', paper: '#f0e3c7', ink: '#514333', swatch: '#ece0c5' },
+  mint: { label: 'Soft mint', paper: '#c6e1d4', ink: '#2f4b42', swatch: '#bbd8cc' },
+  white: { label: 'Paper white', paper: '#f0f0eb', ink: '#3d4244', swatch: '#edece8' },
+  grey: { label: 'Mist grey', paper: '#d7dce0', ink: '#38454e', swatch: '#cbd2d7' },
 }
 
 export const NOTE_WIDTH = 2.62

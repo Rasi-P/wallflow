@@ -81,3 +81,24 @@ test('long writing stays within the shared text layout for both renderers', () =
   assert.ok(lines.every(({ x, y, width }) => x >= 100 && x + width <= 924 && y <= 846))
   assert.ok(lines.every(({ text }) => !/[\uD800-\uDFFF]/u.test(text)))
 })
+
+test('larger mobile lettering stays inside the paper and above the task summary', () => {
+  const lines: Array<{ text: string; x: number; y: number; width: number; font: string }> = []
+  const boxes: number[] = []
+  const context = {
+    font: '',
+    measureText(text: string) { return { width: Array.from(text).length * (Number(/(\d+)px/.exec(this.font)?.[1]) || 90) * 0.55 } },
+    fillText(text: string, x: number, y: number, width: number) { lines.push({ text, x, y, width, font: this.font }) },
+    strokeRect(_x: number, y: number) { boxes.push(y) },
+  } as unknown as CanvasRenderingContext2D
+  paintNoteInk(context, {
+    phone: true, largerInk: true, title: 'Plan lessons', body: 'Research notes '.repeat(16),
+    task: { rows: Array.from({ length: 3 }, () => ({ text: 'Review the long step '.repeat(4), done: false })),
+      summary: '0/3 checked', due: 'Due Wed', overdue: false },
+  }, '#333')
+  assert.match(lines[0].font, /124px/)
+  assert.equal(boxes.length, 3)
+  const summary = lines.find(({ text }) => text === '0/3 checked')!
+  assert.ok(lines.filter(({ text }) => text.startsWith('Review')).every(({ y, text }) => y < summary.y && text.endsWith('…')))
+  assert.ok(lines.every(({ x, width, y }) => x + width <= 924 && y < 1024))
+})

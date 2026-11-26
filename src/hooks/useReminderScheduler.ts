@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
-import { useWallStore } from '../stores/wallStore'
-import { browserReminderNotifications, deliverReminders, reminderDelay } from '../utils/reminders'
+import { useWallStore, workspace } from '../stores/wallStore'
+import { browserReminderNotifications, deliverWorkspaceReminders, reminderDelay } from '../utils/reminders'
 
 export function useReminderScheduler() {
   useEffect(() => {
@@ -11,19 +11,22 @@ export function useReminderScheduler() {
       checking = true
       try {
         clearTimeout(timer)
-        const state = useWallStore.getState()
         const notifications = browserReminderNotifications()
-        const { delivered, nextAt, failed } = deliverReminders(state.notes, state.notifiedReminders, Date.now(), notifications)
-        if (delivered.length) state.markRemindersNotified(delivered)
-        state.setReminderPermission(failed ? 'unavailable' : notifications?.permission ?? 'unavailable')
+        const { receipts, nextAt, failed } = deliverWorkspaceReminders(workspace.getState(), Date.now(), notifications)
+        for (const { boardId, ids } of receipts) workspace.markBoardRemindersNotified(boardId, ids)
+        useWallStore.getState().setReminderPermission(failed ? 'unavailable' : notifications?.permission ?? 'unavailable')
         if (nextAt !== undefined) timer = setTimeout(refresh, reminderDelay(nextAt))
       } finally {
         checking = false
       }
     }
-    const unsubscribe = useWallStore.subscribe((state, previous) => {
-      if (state.notes !== previous.notes || state.notifiedReminders !== previous.notifiedReminders ||
-        state.reminderPermission !== previous.reminderPermission) refresh()
+    const unsubscribeWorkspace = workspace.subscribe((state, previous) => {
+      if (state.boardOrder !== previous.boardOrder || state.boardOrder.some((id) =>
+        state.boards[id].document.notes !== previous.boards[id].document.notes ||
+        state.boards[id].notifiedReminders !== previous.boards[id].notifiedReminders)) refresh()
+    })
+    const unsubscribeWall = useWallStore.subscribe((state, previous) => {
+      if (state.reminderPermission !== previous.reminderPermission) refresh()
     })
     refresh()
     window.addEventListener('focus', refresh)
@@ -31,7 +34,8 @@ export function useReminderScheduler() {
     document.addEventListener('visibilitychange', refresh)
     return () => {
       clearTimeout(timer)
-      unsubscribe()
+      unsubscribeWorkspace()
+      unsubscribeWall()
       window.removeEventListener('focus', refresh)
       window.removeEventListener('pageshow', refresh)
       document.removeEventListener('visibilitychange', refresh)

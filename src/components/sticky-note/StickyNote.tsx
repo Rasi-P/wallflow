@@ -23,6 +23,7 @@ interface DragState {
   pointerId: number
   isTouch: boolean
   moved: boolean
+  setDragging: ReturnType<typeof useWallStore.getState>['setDragging']
   stopWatching: () => void
   release: () => void
 }
@@ -54,7 +55,7 @@ export const StickyNote = memo(function StickyNote({ note, visible, depth, paper
   const selected = useWallStore((s) => s.selectedId === note.id)
   const editing = useWallStore((s) => s.editingId === note.id)
   const size = getNoteSize(note)
-  const { title, body, color, doodle, checklist, priority, dueDate, completed } = note
+  const { title, body, color, doodle, typography, checklist, priority, dueDate, completed } = note
   const today = useWallStore((state) => dueDate ? state.today : '')
   const task = useMemo(() => getTaskInk({ checklist, priority, dueDate, completed }, today), [checklist, priority, dueDate, completed, today])
   useLayoutEffect(() => {
@@ -64,9 +65,9 @@ export const StickyNote = memo(function StickyNote({ note, visible, depth, paper
     return () => { surface.current = null; binding.dispose() }
   }, [bindSurface])
   useLayoutEffect(() => {
-    surface.current?.update({ title, body, color, doodle, task })
+    surface.current?.update({ title, body, color, doodle, task, typography })
     invalidate()
-  }, [bindSurface, title, body, color, doodle, task, invalidate])
+  }, [bindSurface, title, body, color, doodle, task, typography, invalidate])
 
   const frame = useCallback<PaperMotionFrame>((delta) => {
     const sheet = paper.current
@@ -131,7 +132,8 @@ export const StickyNote = memo(function StickyNote({ note, visible, depth, paper
     state.stopWatching()
     state.release()
     drag.current = null
-    if (useWallStore.getState().draggingId === note.id) useWallStore.getState().setDragging(null)
+    const current = useWallStore.getState()
+    if (current.setDragging === state.setDragging && current.draggingId === note.id) current.setDragging(null)
     gl.domElement.style.cursor = ''
   }, [note.id, gl])
 
@@ -143,13 +145,18 @@ export const StickyNote = memo(function StickyNote({ note, visible, depth, paper
     if (!local) return
     const pointerId = event.pointerId
     const isTouch = event.nativeEvent.pointerType === 'touch'
+    const unwatchBoard = useWallStore.subscribe((current) => {
+      // A touch that has not moved yet does not lock board switching.
+      if (current.setDragging !== state.setDragging) finishDrag(false)
+    })
+    // A second touch cancels the note gesture before OrbitControls starts dolly-pan.
+    const unwatchPointer = watchNotePointer(window, gl.domElement, pointerId, isTouch, () => finishDrag(false))
     drag.current = {
       offset: new Vector2(local.x - note.position[0], local.y - note.position[1]),
       ray: event.ray.clone(),
       start: new Vector2(event.clientX, event.clientY),
-      pointerId, isTouch, moved: false,
-      // A second touch cancels the note gesture before OrbitControls starts dolly-pan.
-      stopWatching: watchNotePointer(window, gl.domElement, pointerId, isTouch, () => finishDrag(false)),
+      pointerId, isTouch, moved: false, setDragging: state.setDragging,
+      stopWatching: () => { unwatchBoard(); unwatchPointer() },
       release: captureNotePointer(event.target, pointerId),
     }
     // In select mode OrbitControls tracks the initial touch without moving the camera.
@@ -172,7 +179,7 @@ export const StickyNote = memo(function StickyNote({ note, visible, depth, paper
     state.ray.copy(event.ray)
     if (lifted) {
       state.moved = true
-      useWallStore.getState().setDragging(note.id, state.isTouch)
+      state.setDragging(note.id, state.isTouch)
       animateLift(getPickupLift(depth))
     }
     const [x, y] = clampPosition([local.x - state.offset.x, local.y - state.offset.y], size, note.rotation)
@@ -195,15 +202,16 @@ export const StickyNote = memo(function StickyNote({ note, visible, depth, paper
     drag.current = null
     state.stopWatching()
     state.release()
+    const current = useWallStore.getState()
+    const sameBoard = current.setDragging === state.setDragging
     const object = group.current
     if (object && state.moved) {
-      if (commit) useWallStore.getState().updateNote(note.id, { position: [object.position.x, object.position.y] })
+      if (commit && sameBoard) current.updateNote(note.id, { position: [object.position.x, object.position.y] })
       else object.position.set(note.position[0], note.position[1], 0)
       animateLift(0)
       gl.shadowMap.needsUpdate = true
     }
-    const current = useWallStore.getState()
-    if (current.draggingId === note.id) current.setDragging(null)
+    if (sameBoard && current.draggingId === note.id) current.setDragging(null)
     gl.domElement.style.cursor = ''
   }
 

@@ -12,7 +12,7 @@ import { useDismissiblePopover } from '../../hooks/useDismissiblePopover'
 export function Toolbar() {
   const past = useWallStore((s) => s.past.length)
   const future = useWallStore((s) => s.future.length)
-  const color = useWallStore((s) => s.activeColor)
+  const color = useWallStore((s) => (s.selectedId && s.notes.find((note) => note.id === s.selectedId)?.color) || s.noteDefaults.color)
   const mode = useWallStore((s) => s.mode)
   const selected = useWallStore((s) => s.selectedId)
   const editing = useWallStore((s) => s.editingId !== null)
@@ -29,7 +29,7 @@ export function Toolbar() {
     {selected && !editing && <SelectedNoteTools key={selected} id={selected} count={count} />}
     {wallControls && <WallRotation panel={panel} onClose={finishRotation} />}
     <div className="floating-toolbar" role="group" aria-label="Wall tools">
-      <button type="button" className="add-note-button" onClick={() => actions.addNote()} disabled={count >= MAX_NOTES} aria-label="Add a note" data-tooltip="Add a note (N)"><Plus size={19} /><span>Add a note</span></button>
+      <button type="button" className="add-note-button" data-tour-anchor="add" onClick={() => actions.addNote()} disabled={count >= MAX_NOTES} aria-label="Add a note" data-tooltip="Add a note (N)"><Plus size={19} /><span>Add a note</span></button>
       <div className="tool-group history-tools"><IconButton label="Undo" data-tooltip="Undo (Ctrl/⌘ Z)" aria-keyshortcuts="Control+z Meta+z" disabled={!past} onClick={actions.undo}><Undo2 size={18} /></IconButton><IconButton label="Redo" data-tooltip="Redo (Ctrl/⌘ Shift Z)" disabled={!future} onClick={actions.redo}><Redo2 size={18} /></IconButton></div>
       <span className="toolbar-divider" />
       <div className="color-swatches" role="group" aria-label={selected ? 'Selected note color' : 'New note color'}>
@@ -40,9 +40,9 @@ export function Toolbar() {
       <ZoomTools />
     </div>
     <div className="navigation-bar"><div className="mode-switcher" role="group" aria-label="Camera interaction mode">
-      <IconButton label="Select and move notes (V)" active={mode === 'select'} onClick={() => actions.setMode('select')}><MousePointer2 size={15} /></IconButton>
-      <IconButton label="Pan camera (H)" active={mode === 'pan'} onClick={() => actions.setMode('pan')}><Hand size={15} /></IconButton>
-      <IconButton label="Orbit camera (O)" active={mode === 'orbit'} onClick={() => actions.setMode('orbit')}><Orbit size={16} /></IconButton>
+      <IconButton data-tour-anchor="move" label="Select and move notes (V)" active={mode === 'select'} onClick={() => actions.setMode('select')}><MousePointer2 size={15} /></IconButton>
+      <IconButton data-tour-anchor="camera" label="Pan camera (H)" active={mode === 'pan'} onClick={() => actions.setMode('pan')}><Hand size={15} /></IconButton>
+      <IconButton data-tour-anchor="camera" label="Orbit camera (O)" active={mode === 'orbit'} onClick={() => actions.setMode('orbit')}><Orbit size={16} /></IconButton>
     </div><span className="navigation-divider" /><button ref={trigger} type="button" className={`wall-rotation-trigger ${wallControls ? 'is-active' : ''}`}
       onClick={() => setWallControls(!wallControls)} aria-expanded={wallControls} aria-controls={wallControls ? 'wall-rotation' : undefined}><Move3D size={15} /> Rotate wall<ChevronDown size={12} /></button></div>
   </div>
@@ -56,7 +56,7 @@ function ZoomTools() {
     <IconButton label="Zoom out" disabled={zoom <= zoomBounds[0]} onClick={() => commandCamera('zoom', 1.2)}><Minus size={17} /></IconButton>
     <span className="zoom-value" aria-live="off">{zoom}%</span>
     <IconButton label="Zoom in" disabled={zoom >= zoomBounds[1]} onClick={() => commandCamera('zoom', 1 / 1.2)}><Plus size={17} /></IconButton>
-    <IconButton label="Reset camera (0)" onClick={() => commandCamera('reset')}><Scan size={18} /></IconButton>
+    <IconButton data-tour-anchor="camera" label="Reset camera (0)" onClick={() => commandCamera('reset')}><Scan size={18} /></IconButton>
   </div>
 }
 

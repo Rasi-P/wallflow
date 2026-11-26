@@ -240,3 +240,21 @@ test('wall history reacquires live masks and recreates freed masks after deletio
   deleteNote('first'); syncNotes()
   assert.equal(handles.size, 0)
 })
+
+test('ink masks distinguish title styles while continuing to share the paper finish', (t) => {
+  const count = mockCanvas(t)
+  const bind = createPaperInkSurface()
+  const materials = Array.from({ length: 3 }, () => new MeshStandardMaterial())
+  const bindings = materials.map(bind)
+  const artwork = { title: 'Lettering options', body: '', color: 'pink' as const }
+  bindings[0].update(artwork)
+  bindings[1].update({ ...artwork, typography: 'sans' })
+  bindings[2].update({ ...artwork, typography: 'handwritten' })
+  const masks = materials.map((material) => compileHook(material).uniforms.wallflowInkMask.value)
+  assert.equal(masks[0], masks[2])
+  assert.notEqual(masks[0], masks[1])
+  assert.equal(new Set(materials.map((material) => material.map)).size, 1)
+  assert.equal(count.readbacks, 2)
+  bindings.forEach((binding) => binding.dispose())
+  materials.forEach((material) => material.dispose())
+})

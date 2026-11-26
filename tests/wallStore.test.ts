@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { Group, Mesh, Vector3 } from 'three'
 import { createPaperGeometry } from '../src/three/paperGeometry.ts'
 import { MAX_NOTES, NOTE_HEIGHT, NOTE_WIDTH, SAMPLE_NOTES } from '../src/utils/constants.ts'
+import { LEGACY_WALL_STORAGE_KEY, WORKSPACE_STORAGE_KEY } from '../src/stores/workspaceStorage.ts'
 
 const memory = new Map<string, string>()
 Object.defineProperty(globalThis, 'localStorage', { value: {
@@ -10,11 +11,11 @@ Object.defineProperty(globalThis, 'localStorage', { value: {
   setItem: (key: string, value: string) => { memory.set(key, value) },
   removeItem: (key: string) => { memory.delete(key) },
 } })
-const { useWallStore: store, clampPosition } = await import('../src/stores/wallStore.ts')
+const { useWallStore: store, workspace, clampPosition } = await import('../src/stores/wallStore.ts')
 
 beforeEach(() => {
   memory.clear()
-  store.setState({ notes: structuredClone(SAMPLE_NOTES), wallRotation: [0, 0], past: [], future: [], selectedId: null, editingId: null, editSession: null, draggingId: null, activeColor: 'yellow', mode: 'select', welcomeDismissed: false })
+  workspace.reload()
 })
 
 const sampleId = SAMPLE_NOTES[0].id
@@ -77,60 +78,49 @@ test('notes are bounded by the physical wall and have a finite limit', () => {
 test('persistence stores durable wall data without UI state or history', () => {
   store.getState().select(sampleId)
   store.getState().rotateWall([10, 5])
-  const saved = JSON.parse(memory.get('wallflow-wall-v1')!).state
-  assert.equal(saved.notes.length, SAMPLE_NOTES.length)
-  assert.deepEqual(saved.wallRotation, [10, 5])
+  const saved = JSON.parse(memory.get(WORKSPACE_STORAGE_KEY)!).boards[workspace.getState().activeBoardId]
+  assert.equal(saved.document.notes.length, SAMPLE_NOTES.length)
+  assert.deepEqual(saved.document.wallRotation, [10, 5])
   assert.equal(saved.selectedId, undefined)
   assert.equal(saved.past, undefined)
 })
 
-test('camera and selection changes do not serialize a 60-note wall', () => {
+test('camera and selection changes do not serialize a 60-note wall', (t) => {
   const notes = Array.from({ length: MAX_NOTES }, (_, index) => ({ ...SAMPLE_NOTES[0], id: `note-${index}` }))
   store.setState({ notes })
-  const storage = store.persist.getOptions().storage!
-  let writes = 0
-  store.persist.setOptions({ storage: { ...storage, setItem() { writes++ } } })
-  try {
-    const { setZoomPercent, select, setDragging, updateNote } = store.getState()
-    for (let i = 0; i < 120; i++) setZoomPercent(i)
-    select(notes[0].id)
-    setDragging(notes[0].id)
-    setDragging(null)
-    assert.equal(writes, 0)
-    assert.equal(store.getState().notes, notes)
-    updateNote(notes[0].id, { title: 'A saved change' })
-    assert.equal(writes, 1)
-    assert.equal(store.getState().notes[1], notes[1])
-  } finally {
-    store.persist.setOptions({ storage })
-  }
+  const write = t.mock.method(localStorage, 'setItem')
+  const { setZoomPercent, select, setDragging, updateNote } = store.getState()
+  for (let i = 0; i < 120; i++) setZoomPercent(i)
+  select(notes[0].id)
+  setDragging(notes[0].id)
+  setDragging(null)
+  assert.equal(write.mock.callCount(), 0)
+  assert.equal(store.getState().notes, notes)
+  updateNote(notes[0].id, { title: 'A saved change' })
+  assert.equal(write.mock.callCount(), 1)
+  assert.equal(store.getState().notes[1], notes[1])
 })
 
-test('refresh restores note text, position, rotation and color', async () => {
+test('refresh restores note text, position, rotation and color', () => {
   const id = SAMPLE_NOTES[0].id
   const changes = { title: 'Updated title', body: 'Keep this reminder.', position: [3, -4] as [number, number], color: 'violet' as const }
   store.getState().updateNote(id, changes)
   store.getState().rotateWall([15, -20])
-  const key = 'wallflow-wall-v1'
-  const saved = memory.get(key)!
-  store.setState({ notes: [], wallRotation: [0, 0], past: [] })
-  memory.set(key, saved)
-
-  await store.persist.rehydrate()
+  workspace.reload()
 
   assert.deepEqual(store.getState().notes[0], { ...SAMPLE_NOTES[0], ...changes })
   assert.deepEqual(store.getState().wallRotation, [15, -20])
   assert.deepEqual(store.getState().past, [])
 })
 
-test('corrupt storage keeps valid notes and cannot overwrite store actions', async () => {
+test('corrupt storage keeps valid notes and cannot overwrite store actions', () => {
   const note = SAMPLE_NOTES[0]
-  memory.set('wallflow-wall-v1', JSON.stringify({ version: 1, state: {
+  memory.set(LEGACY_WALL_STORAGE_KEY, JSON.stringify({ version: 1, state: {
     notes: [null, { ...note, id: 'invalid-color', color: 'toString' }, { ...note, id: 'invalid-position', position: [1, null] }, note, { ...note, title: 'Duplicate' }],
     wallRotation: [500, -200], wallName: {}, lighting: 'unknown', addNote: null,
   } }))
 
-  await store.persist.rehydrate()
+  workspace.reload()
 
   assert.deepEqual(store.getState().notes, [note])
   assert.deepEqual(store.getState().wallRotation, [25, -30])
@@ -139,44 +129,39 @@ test('corrupt storage keeps valid notes and cannot overwrite store actions', asy
   assert.equal(typeof store.getState().addNote, 'function')
 })
 
-test('invalid JSON and an invalid note collection leave a usable wall', async () => {
-  const key = 'wallflow-wall-v1'
+test('invalid JSON and an invalid note collection leave a usable wall', () => {
   for (const contents of ['{broken', JSON.stringify({ version: 1, state: { notes: null } })]) {
-    memory.set(key, contents)
-    await store.persist.rehydrate()
+    memory.set(LEGACY_WALL_STORAGE_KEY, contents)
+    workspace.reload()
     assert.deepEqual(store.getState().notes, SAMPLE_NOTES)
   }
   store.getState().addNote()
   assert.equal(store.getState().notes.length, SAMPLE_NOTES.length + 1)
 })
 
-test('an intentionally empty wall remains empty after refresh', async () => {
-  memory.set('wallflow-wall-v1', JSON.stringify({ version: 1, state: { notes: [] } }))
-  await store.persist.rehydrate()
+test('an intentionally empty wall remains empty after refresh', () => {
+  memory.set(LEGACY_WALL_STORAGE_KEY, JSON.stringify({ version: 1, state: { notes: [] } }))
+  workspace.reload()
   assert.deepEqual(store.getState().notes, [])
 })
 
-test('dismissing the welcome survives refresh without changing notes or history', async () => {
-  const key = 'wallflow-wall-v1'
+test('dismissing the welcome survives refresh without changing notes or history', () => {
   const notes = store.getState().notes
-  assert.equal(store.getInitialState().welcomeDismissed, false)
-  store.getState().dismissWelcome()
-  const saved = memory.get(key)!
+  assert.equal(store.getState().onboardingComplete, false)
+  store.getState().completeOnboarding({ starter: 'samples', offerTutorial: false })
   assert.equal(store.getState().notes, notes)
   assert.equal(store.getState().past.length, 0)
-  store.setState({ welcomeDismissed: false })
-  memory.set(key, saved)
-  await store.persist.rehydrate()
-  assert.equal(store.getState().welcomeDismissed, true)
+  workspace.reload()
+  assert.equal(store.getState().onboardingComplete, true)
   assert.deepEqual(store.getState().notes, notes)
 })
 
-test('returning users retain their old notes instead of getting the new starter wall', async () => {
+test('returning users retain their old notes instead of getting the new starter wall', () => {
   const oldNote = { ...SAMPLE_NOTES[0], id: 'a-little-focus', title: 'My own weekly plan', position: [4, 2] }
-  memory.set('wallflow-wall-v1', JSON.stringify({ version: 1, state: { notes: [oldNote] } }))
-  await store.persist.rehydrate()
+  memory.set(LEGACY_WALL_STORAGE_KEY, JSON.stringify({ version: 1, state: { notes: [oldNote] } }))
+  workspace.reload()
   assert.deepEqual(store.getState().notes, [oldNote])
-  assert.equal(store.getState().welcomeDismissed, true)
+  assert.equal(store.getState().onboardingComplete, true)
 })
 
 test('the first new note has room beside the starter notes', () => {

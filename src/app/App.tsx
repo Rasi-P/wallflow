@@ -1,4 +1,4 @@
-import { CircleHelp, FilterX, MousePointer2, ZoomIn, X, StickyNote as StickyNoteIcon } from 'lucide-react'
+import { CircleHelp, FilterX, MousePointer2, ZoomIn, StickyNote as StickyNoteIcon } from 'lucide-react'
 import { lazy, Suspense, useCallback, useRef, useState } from 'react'
 import { Header } from '../components/toolbar/Header'
 import { Toolbar } from '../components/toolbar/Toolbar'
@@ -15,19 +15,12 @@ import { useReminderScheduler } from '../hooks/useReminderScheduler'
 import { TasksPanel } from '../components/ui/TasksPanel'
 import { countActiveNotes } from '../utils/noteTasks'
 import { DEFAULT_FILTERS, hasWallFilters } from '../utils/noteSearch'
-
+import { Welcome } from '../components/ui/Welcome'
+import { WallTutorial } from '../components/ui/WallTutorial'
+import { TUTORIAL_STEPS } from '../utils/onboarding'
 import type { ActiveSession } from '../auth/session'
 
 const WallScene = lazy(() => import('../three/WallScene'))
-
-function Welcome() {
-  const dismissed = useWallStore((s) => s.welcomeDismissed)
-  if (dismissed) return null
-  return <section className="wall-introduction" aria-labelledby="welcome-title">
-    <div><h1 id="welcome-title">A little room to think.</h1><p>Drag a note to make this wall yours.</p></div>
-    <button type="button" className="icon-button welcome-dismiss" aria-label="Dismiss welcome" onClick={() => useWallStore.getState().dismissWelcome()}><X size={16} /></button>
-  </section>
-}
 
 export function App({ session, onSignOut }: { session: ActiveSession; onSignOut: () => void }) {
   useKeyboardShortcuts()
@@ -47,12 +40,16 @@ export function App({ session, onSignOut }: { session: ActiveSession; onSignOut:
   const tasksOpen = useWallStore((s) => s.tasksOpen)
   const showHints = useWallStore((s) => s.showHints)
   const filtered = useWallStore((s) => hasWallFilters(s.filters))
+  const onboardingComplete = useWallStore((s) => s.onboardingComplete)
+  const tutorial = useWallStore((s) => s.tutorial)
+  const tourTarget = typeof tutorial === 'number' ? TUTORIAL_STEPS[tutorial]?.target : undefined
 
-  return <main className="wallflow-app">
+  return <main className="wallflow-app" data-tour-target={tourTarget}>
     <SceneErrorBoundary><Suspense fallback={<WallLoading />}><WallScene editorElement={editorElement} /></Suspense></SceneErrorBoundary>
     <Header />
     {tasksOpen && <TasksPanel />}
-    <Welcome />
+    {!onboardingComplete && tutorial === null && <Welcome />}
+    {tutorial !== null && <WallTutorial progress={tutorial} />}
     <Toolbar />
     <footer className="app-footer"><div className="wall-note-count"><StickyNoteIcon size={14} /><span>{noteCount} {noteCount === 1 ? 'note' : 'notes'}</span>
       {filtered && <button type="button" className="clear-wall-filters" onClick={() => useWallStore.getState().setFilters(DEFAULT_FILTERS)}><FilterX size={14} /> Clear filters</button>}

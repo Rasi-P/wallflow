@@ -6,14 +6,14 @@ import { SAMPLE_NOTES } from '../src/utils/constants.ts'
 import { dailyProgress, listTodayNotes } from '../src/utils/dailyPlan.ts'
 import { deliverReminders, listReminders, parseReminderInput, reminderDelay, reminderInputValue, requestReminderPermission } from '../src/utils/reminders.ts'
 import type { ReminderNotifications } from '../src/utils/reminders.ts'
+import { LEGACY_WALL_STORAGE_KEY, WORKSPACE_STORAGE_KEY } from '../src/stores/workspaceStorage.ts'
 
-const storeKey = 'wallflow-wall-v1'
 const memory = new Map<string, string>()
 Object.defineProperty(globalThis, 'localStorage', { value: {
   getItem: (key: string) => memory.get(key) ?? null,
   setItem: (key: string, value: string) => { memory.set(key, value) },
 } })
-const { useWallStore: store } = await import('../src/stores/wallStore.ts')
+const { useWallStore: store, workspace } = await import('../src/stores/wallStore.ts')
 const [sample, other] = SAMPLE_NOTES
 const today = '2026-11-25'
 const yesterday = '2026-11-24'
@@ -23,15 +23,9 @@ const note = (id = sample.id) => store.getState().notes.find((entry) => entry.id
 
 beforeEach(() => {
   memory.clear()
-  store.setState({ ...store.getInitialState(), notes: structuredClone(SAMPLE_NOTES), today })
+  workspace.reload()
+  store.getState().setToday(today)
 })
-
-async function refresh() {
-  const saved = memory.get(storeKey)!
-  store.setState({ ...store.getInitialState(), today })
-  memory.set(storeKey, saved)
-  await store.persist.rehydrate()
-}
 
 test('Today shows due, overdue and planned work while excluding archived and unrelated work', () => {
   const notes: StickyNoteData[] = [
@@ -232,7 +226,7 @@ test('local reminder inputs round-trip and timezone changes preserve the saved i
   assert.equal(parseReminderInput('2026-11-25T24:00'), undefined)
 })
 
-test('refresh preserves plans, reminders, notification receipts and existing wall fields', async () => {
+test('refresh preserves plans, reminders, notification receipts and existing wall fields', () => {
   const { createSection, assignSection, updateNote, updateTask, editChecklist, setPlanned, setReminder,
     markRemindersNotified, setReminderPermission, setWallName, setLighting } = store.getState()
   const section = createSection('Studio', [8, -6])!
@@ -248,7 +242,7 @@ test('refresh preserves plans, reminders, notification receipts and existing wal
   setReminderPermission('granted')
   setWallName('My plans')
   setLighting('warm')
-  await refresh()
+  workspace.reload()
   const state = store.getState()
   assert.deepEqual(note(), expected)
   assert.deepEqual(state.sections, [{ id: section, name: 'Studio', position: [8, -6] }])
@@ -259,18 +253,21 @@ test('refresh preserves plans, reminders, notification receipts and existing wal
   assert.deepEqual(deliverReminders(state.notes, state.notifiedReminders, future + 1, notificationClient('granted').notifications).delivered, [])
 })
 
-test('older saved walls and malformed planner or reminder fields retain valid note and section data', async () => {
+test('older saved walls and malformed planner or reminder fields retain valid note and section data', () => {
   const section = { id: 'research', name: 'Research', position: [7, 1] }
   const original = { ...sample, sectionId: section.id, checklist: [{ id: 'first', text: 'Keep this', done: true }] }
-  memory.set(storeKey, JSON.stringify({ version: 1, state: { notes: [original, other], sections: [section] } }))
-  await store.persist.rehydrate()
+  memory.set(LEGACY_WALL_STORAGE_KEY, JSON.stringify({ version: 1, state: { notes: [original, other], sections: [section] } }))
+  workspace.reload()
+  store.getState().setToday(today)
   assert.deepEqual(note(), original)
   assert.deepEqual(store.getState().sections, [section])
 
   const malformed = { ...original, plannedOn: '2026-02-30', reminder: { id: 'invalid', at: '2026-11-25T13:00' },
     checklist: [{ ...original.checklist[0], plannedOn: true }] }
-  memory.set(storeKey, JSON.stringify({ version: 1, state: { notes: [malformed, other], sections: [section], notifiedReminders: ['invalid'] } }))
-  await store.persist.rehydrate()
+  memory.delete(WORKSPACE_STORAGE_KEY)
+  memory.set(LEGACY_WALL_STORAGE_KEY, JSON.stringify({ version: 1, state: { notes: [malformed, other], sections: [section], notifiedReminders: ['invalid'] } }))
+  workspace.reload()
+  store.getState().setToday(today)
   assert.deepEqual(note(), original)
   assert.deepEqual(store.getState().notifiedReminders, [])
 })

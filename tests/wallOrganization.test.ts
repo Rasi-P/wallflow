@@ -7,21 +7,21 @@ import { DEFAULT_FILTERS, searchNotes } from '../src/utils/noteSearch.ts'
 import { MAX_SECTIONS, SECTION_HEIGHT, SECTION_WIDTH, sectionAt } from '../src/utils/wallSections.ts'
 import { positionWallFocus, resolveCameraFocus, wallFocusDistance } from '../src/three/cameraFocus.ts'
 import { constrainWallView, WALL_CAMERA_FOV } from '../src/three/wallViewBounds.ts'
+import { LEGACY_WALL_STORAGE_KEY, WORKSPACE_STORAGE_KEY } from '../src/stores/workspaceStorage.ts'
 
-const key = 'wallflow-wall-v1'
 const memory = new Map<string, string>()
 Object.defineProperty(globalThis, 'localStorage', { value: {
   getItem: (name: string) => memory.get(name) ?? null,
   setItem: (name: string, value: string) => { memory.set(name, value) },
 } })
-const { useWallStore: store, registerVisibleNoteSlots } = await import('../src/stores/wallStore.ts')
+const { useWallStore: store, workspace, registerVisibleNoteSlots } = await import('../src/stores/wallStore.ts')
 const { handleWallShortcut } = await import('../src/hooks/useKeyboardShortcuts.ts')
 const [sample, sibling] = SAMPLE_NOTES
 const note = (id = sample.id) => store.getState().notes.find((entry) => entry.id === id)!
 
 beforeEach(() => {
   memory.clear()
-  store.setState({ ...store.getInitialState(), notes: structuredClone(SAMPLE_NOTES) })
+  workspace.reload()
 })
 
 test('create, rename and move freely placed sections with undo and redo', () => {
@@ -143,12 +143,12 @@ test('all filter fields can be combined and clearing filters keeps all notes int
   assert.deepEqual(searchNotes(notes, '', { ...DEFAULT_FILTERS, priority: 'none', due: 'none' }, today), [notes[4]])
   store.setState({ notes })
   store.getState().select(sample.id)
-  const before = memory.get(key)
+  const before = memory.get(WORKSPACE_STORAGE_KEY)
   store.getState().setFilters({ ...DEFAULT_FILTERS, completion: 'open' })
   assert.equal(store.getState().selectedId, null)
   store.getState().setFilters(DEFAULT_FILTERS)
   assert.equal(store.getState().notes, notes)
-  assert.equal(memory.get(key), before)
+  assert.equal(memory.get(WORKSPACE_STORAGE_KEY), before)
 })
 
 test('moving a selected note outside its filtered section clears selection without losing the note', () => {
@@ -222,7 +222,7 @@ test('section and resized note focus frame the geometry on desktop and mobile, e
   assert.equal(store.getState().notes, document.notes)
 })
 
-test('version 1 storage preserves section and note data and ignores malformed section records', async () => {
+test('workspace storage preserves section and note data and ignores malformed section records', () => {
   const { createSection, assignSection, archiveNote, updateNote, editChecklist, updateTask } = store.getState()
   const work = createSection('Work', [10, 0])!
   updateNote(sample.id, { size: [3.5, 4], position: [8.5, -1], rotation: 0.24, color: 'green' })
@@ -231,19 +231,20 @@ test('version 1 storage preserves section and note data and ignores malformed se
   updateTask(sample.id, { priority: 'high', dueDate: '2026-12-01', completed: true })
   archiveNote(sample.id)
   const expected = note()
-  const saved = JSON.parse(memory.get(key)!)
-  assert.equal(saved.version, 1)
-  saved.state.sections.push({ id: 'bad', name: 'Bad section', position: [1, null] }, { ...saved.state.sections[0], name: 'Duplicate' })
-  saved.state.notes.find((entry: StickyNoteData) => entry.id === sibling.id).sectionId = 'bad'
-  store.setState(store.getInitialState())
-  memory.set(key, JSON.stringify(saved))
-  await store.persist.rehydrate()
+  const saved = JSON.parse(memory.get(WORKSPACE_STORAGE_KEY)!)
+  assert.equal(saved.version, 2)
+  const document = saved.boards[saved.activeBoardId].document
+  document.sections.push({ id: 'bad', name: 'Bad section', position: [1, null] }, { ...document.sections[0], name: 'Duplicate' })
+  document.notes.find((entry: StickyNoteData) => entry.id === sibling.id).sectionId = 'bad'
+  memory.set(WORKSPACE_STORAGE_KEY, JSON.stringify(saved))
+  workspace.reload()
   assert.equal(store.getState().sections.length, 1)
   assert.deepEqual(store.getState().sections[0], { id: work, name: 'Work', position: [10, 0] })
   assert.deepEqual(note(), expected)
   assert.deepEqual(note(sibling.id), sibling)
-  memory.set(key, JSON.stringify({ version: 1, state: { notes: [sibling] } }))
-  await store.persist.rehydrate()
+  memory.delete(WORKSPACE_STORAGE_KEY)
+  memory.set(LEGACY_WALL_STORAGE_KEY, JSON.stringify({ version: 1, state: { notes: [sibling] } }))
+  workspace.reload()
   assert.deepEqual(store.getState().sections, [])
   assert.deepEqual(store.getState().notes, [sibling])
 })

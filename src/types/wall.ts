@@ -1,8 +1,28 @@
 export type NoteColor = 'yellow' | 'pink' | 'green' | 'blue' | 'violet'
 export type InteractionMode = 'select' | 'pan' | 'orbit'
 export type Lighting = 'daylight' | 'warm'
+export type EnvironmentTheme = 'minimal' | 'study' | 'studio' | 'lab'
+export type WallShade = 'theme' | 'chalk' | 'ivory' | 'mist'
+export type EnvironmentAmbience = 'theme' | 'quiet' | 'airy'
+export type NoteTypography = 'handwritten' | 'sans'
+export type NewNoteSize = 'compact' | 'standard' | 'large'
+export type NewNoteRotation = 'varied' | 'straight'
 export type Point2 = [number, number]
 export type TaskPriority = 'low' | 'medium' | 'high'
+
+export interface WallAppearance {
+  theme: EnvironmentTheme
+  shade: WallShade
+  intensity: number
+  ambience: EnvironmentAmbience
+}
+
+export interface NoteDefaults {
+  color: NoteColor
+  typography: NoteTypography
+  size: NewNoteSize
+  rotation: NewNoteRotation
+}
 
 export interface ChecklistItem {
   id: string
@@ -28,6 +48,7 @@ export interface StickyNoteData extends NoteTaskFields {
   title: string
   body: string
   color: NoteColor
+  typography?: NoteTypography
   position: Point2
   rotation: number
   size?: Point2

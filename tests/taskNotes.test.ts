@@ -5,28 +5,21 @@ import { MAX_NOTES, SAMPLE_NOTES } from '../src/utils/constants.ts'
 import { countActiveNotes, getChecklistProgress, getTaskInk, listDueNotes, MAX_CHECKLIST_ITEMS } from '../src/utils/noteTasks.ts'
 import { dueStatus, formatDueDate, isDueDate, localDay } from '../src/utils/taskDates.ts'
 import { paintNoteInk } from '../src/three/textures.ts'
+import { LEGACY_WALL_STORAGE_KEY } from '../src/stores/workspaceStorage.ts'
 
-const storeKey = 'wallflow-wall-v1'
 const data = new Map<string, string>()
 Object.defineProperty(globalThis, 'localStorage', { value: {
   getItem: (key: string) => data.get(key) ?? null,
   setItem: (key: string, value: string) => { data.set(key, value) },
 } })
-const { useWallStore: store } = await import('../src/stores/wallStore.ts')
+const { useWallStore: store, workspace } = await import('../src/stores/wallStore.ts')
 const [sample, other] = SAMPLE_NOTES
 const note = (id = sample.id) => store.getState().notes.find((entry) => entry.id === id)!
 
 beforeEach(() => {
   data.clear()
-  store.setState({ ...store.getInitialState(), notes: structuredClone(SAMPLE_NOTES) })
+  workspace.reload()
 })
-
-async function refresh() {
-  const saved = data.get(storeKey)!
-  store.setState(store.getInitialState())
-  data.set(storeKey, saved)
-  await store.persist.rehydrate()
-}
 
 test('checklist items can be added, edited, checked, reordered and removed', () => {
   const { editChecklist } = store.getState()
@@ -94,8 +87,8 @@ test('priority can switch between all three levels, clear, and undo changes', ()
   assert.equal(note().priority, undefined)
 })
 
-test('due dates are valid calendar days and survive changes and removal across refresh', async () => {
-  const { updateTask } = store.getState()
+test('due dates are valid calendar days and survive changes and removal across refresh', () => {
+  const updateTask = (dueDate?: string) => store.getState().updateTask(sample.id, { dueDate })
   assert.ok(isDueDate('2028-02-29'))
   for (const value of ['2026-02-29', '1900-02-29', '2026-04-31', '2026-1-01', '2026-01-01T00:00:00Z']) {
     assert.equal(isDueDate(value), false)
@@ -106,15 +99,15 @@ test('due dates are valid calendar days and survive changes and removal across r
   assert.equal(dueStatus('2026-11-25', today), 'today')
   assert.equal(dueStatus('2026-11-26', today), 'upcoming')
   assert.equal(formatDueDate(today, today), new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(2026, 10, 25)))
-  updateTask(sample.id, { dueDate: '2028-02-29' })
-  await refresh()
+  updateTask('2028-02-29')
+  workspace.reload()
   assert.equal(note().dueDate, '2028-02-29')
-  updateTask(sample.id, { dueDate: '2026-11-26' })
-  updateTask(sample.id, { dueDate: '2026-11-31' })
-  await refresh()
+  updateTask('2026-11-26')
+  updateTask('2026-11-31')
+  workspace.reload()
   assert.equal(note().dueDate, '2026-11-26')
-  updateTask(sample.id, { dueDate: undefined })
-  await refresh()
+  updateTask()
+  workspace.reload()
   assert.equal(note().dueDate, undefined)
 })
 
@@ -130,25 +123,25 @@ test('the deadlines list includes only dated open wall notes and sorts by calend
   assert.deepEqual(listDueNotes(entries).map(({ id }) => id), ['overdue', 'today', 'later'])
 })
 
-test('completing and reopening a task keeps its writing, geometry and checklist', async () => {
-  const { updateNote, updateTask, editChecklist, undo } = store.getState()
+test('completing and reopening a task keeps its writing, geometry and checklist', () => {
+  const { updateNote, updateTask, editChecklist } = store.getState()
   updateNote(sample.id, { size: [3.2, 3.2], position: [6, -2], rotation: 0.18, color: 'violet' })
   editChecklist(sample.id, { kind: 'add', text: 'Draft the outline' })
   updateTask(sample.id, { priority: 'high', dueDate: '2028-01-03' })
   const original = note()
   updateTask(sample.id, { completed: true })
-  await refresh()
+  workspace.reload()
   assert.deepEqual(note(), { ...original, completed: true })
   assert.equal(getTaskInk(note(), '2028-02-01')!.overdue, false)
-  updateTask(sample.id, { completed: false })
+  store.getState().updateTask(sample.id, { completed: false })
   assert.equal(note().completed, undefined)
   assert.equal(getTaskInk(note(), '2028-02-01')!.overdue, true)
-  undo()
+  store.getState().undo()
   assert.equal(note().completed, true)
 })
 
-test('archive and restore round-trip the note and each is undoable', async () => {
-  const { select, archiveNote, restoreNote, undo, redo, editChecklist, updateTask, updateNote } = store.getState()
+test('archive and restore round-trip the note and each is undoable', () => {
+  const { select, archiveNote, undo, redo, editChecklist, updateTask, updateNote } = store.getState()
   updateNote(sample.id, { size: [3.1, 3.1], position: [5, 1], rotation: -0.3 })
   editChecklist(sample.id, { kind: 'add', text: 'Check references' })
   updateTask(sample.id, { dueDate: '2026-12-02', priority: 'low', completed: true })
@@ -160,22 +153,23 @@ test('archive and restore round-trip the note and each is undoable', async () =>
   undo()
   assert.deepEqual(note(), original)
   redo()
-  await refresh()
+  workspace.reload()
   assert.deepEqual(note(), { ...original, archived: true })
-  select(sample.id)
+  const current = store.getState()
+  current.select(sample.id)
   assert.equal(store.getState().selectedId, null)
-  restoreNote(sample.id)
+  current.restoreNote(sample.id)
   assert.deepEqual(note(), original)
-  undo()
+  current.undo()
   assert.equal(note().archived, true)
-  redo()
+  current.redo()
   assert.deepEqual(note(), original)
 })
 
-test('archive records survive a full wall reload and restore when a slot opens', async () => {
+test('archive records survive a full wall reload and restore when a slot opens', () => {
   const visible = Array.from({ length: MAX_NOTES }, (_, index) => ({ ...sample, id: `active-${index}` }))
   store.setState({ notes: [...visible, { ...sample, archived: true }] })
-  await refresh()
+  workspace.reload()
   assert.equal(store.getState().notes.length, MAX_NOTES + 1)
   assert.equal(countActiveNotes(store.getState().notes), MAX_NOTES)
   const { restoreNote, archiveNote } = store.getState()
@@ -187,7 +181,7 @@ test('archive records survive a full wall reload and restore when a slot opens',
   assert.equal(countActiveNotes(store.getState().notes), MAX_NOTES)
 })
 
-test('permanent deletion purges both history branches and leaves other changes undoable', async () => {
+test('permanent deletion purges both history branches and leaves other changes undoable', () => {
   const { archiveNote, permanentlyDeleteNote, updateNote, undo, redo } = store.getState()
   permanentlyDeleteNote(sample.id)
   assert.equal(note().id, sample.id)
@@ -201,20 +195,20 @@ test('permanent deletion purges both history branches and leaves other changes u
   assert.equal(note(other.id).title, 'Keep this edit')
   undo()
   assert.equal(note(other.id).title, other.title)
-  await refresh()
+  workspace.reload()
   assert.equal(note(), undefined)
 })
 
-test('legacy notes keep optional dimensions and invalid task data never discards usable paper', async () => {
+test('legacy notes keep optional dimensions and invalid task data never discards usable paper', () => {
   const sized: StickyNoteData = { ...sample, size: [3, 3], position: [2, 3], rotation: 0.2 }
-  data.set(storeKey, JSON.stringify({ version: 1, state: { notes: [
+  data.set(LEGACY_WALL_STORAGE_KEY, JSON.stringify({ version: 1, state: { notes: [
     sized, other, {
       ...sample, id: 'bad-metadata', dueDate: '2026-04-31', priority: 'urgent', completed: 'true', archived: 'true',
       checklist: [null, { id: 'a', text: 'x'.repeat(200), done: true }, { id: 'a', text: 'duplicate' },
         ...Array.from({ length: MAX_CHECKLIST_ITEMS }, (_, index) => ({ id: `item-${index}`, text: 'Saved item', done: false }))],
     },
   ] } }))
-  await store.persist.rehydrate()
+  workspace.reload()
   assert.deepEqual(note(), sized)
   assert.deepEqual(note(other.id), other)
   const { checklist, ...recovered } = note('bad-metadata')

@@ -6,19 +6,19 @@ import { NOTE_HEIGHT, NOTE_WIDTH, SAMPLE_NOTES } from '../src/utils/constants.ts
 import { getNoteSize, resizeFromCorner } from '../src/utils/noteDimensions.ts'
 import { getEditorKeyAction } from '../src/utils/noteEditorKeys.ts'
 import { visibleWallSlots } from '../src/three/noteProjection.ts'
+import { WORKSPACE_STORAGE_KEY } from '../src/stores/workspaceStorage.ts'
 
-const storeKey = 'wallflow-wall-v1'
 const data = new Map<string, string>()
 Object.defineProperty(globalThis, 'localStorage', { value: {
   getItem: (key: string) => data.get(key) ?? null,
   setItem: (key: string, value: string) => { data.set(key, value) },
 } })
-const { useWallStore: store, registerVisibleNoteSlots } = await import('../src/stores/wallStore.ts')
+const { useWallStore: store, workspace, registerVisibleNoteSlots } = await import('../src/stores/wallStore.ts')
 const { handleWallShortcut } = await import('../src/hooks/useKeyboardShortcuts.ts')
 
 beforeEach(() => {
   data.clear()
-  store.setState({ ...store.getInitialState(), notes: structuredClone(SAMPLE_NOTES) })
+  workspace.reload()
 })
 
 test('creation selects and opens the note at the current visible wall center', () => {
@@ -40,7 +40,7 @@ test('creation selects and opens the note at the current visible wall center', (
   assert.equal(editingId, created.id)
   assert.equal(created.title, '')
   assert.equal(notes.length, SAMPLE_NOTES.length + 1)
-  assert.equal(JSON.parse(data.get(storeKey)!).state.notes.at(-1).id, created.id)
+  assert.equal(JSON.parse(data.get(WORKSPACE_STORAGE_KEY)!).boards[workspace.getState().activeBoardId].document.notes.at(-1).id, created.id)
 })
 
 test('live title and description save line breaks with one undo step for an existing note', () => {
@@ -49,7 +49,7 @@ test('live title and description save line breaks with one undo step for an exis
   store.getState().writeNoteText(original.id, { title: 'First line\nSecond line' })
   store.getState().writeNoteText(original.id, { body: 'One\n\nTwo' })
   const updated = store.getState().notes[0]
-  assert.deepEqual(JSON.parse(data.get(storeKey)!).state.notes[0], updated)
+  assert.deepEqual(JSON.parse(data.get(WORKSPACE_STORAGE_KEY)!).boards[workspace.getState().activeBoardId].document.notes[0], updated)
   assert.equal(updated.title, 'First line\nSecond line')
   assert.equal(updated.body, 'One\n\nTwo')
   assert.equal(store.getState().past.length, 0)
@@ -75,7 +75,7 @@ test('Escape cancels only an empty new note and restores the previous redo branc
   assert.equal(store.getState().selectedId, null)
   assert.equal(store.getState().past.length, 0)
   assert.equal(store.getState().future, future)
-  assert.ok(!data.get(storeKey)?.includes(emptyId))
+  assert.ok(!data.get(WORKSPACE_STORAGE_KEY)?.includes(emptyId))
   store.getState().redo()
   assert.equal(store.getState().notes[0].title, 'Redo this')
 
@@ -170,16 +170,13 @@ test('the inline editor supports Enter, command Enter, line breaks and IME', () 
   assert.equal(getEditorKeyAction({ ...event, key: 'Escape' }), 'cancel-empty')
 })
 
-test('refresh preserves a resized note and accepts legacy notes without dimensions', async () => {
+test('refresh preserves a resized note and accepts legacy notes without dimensions', () => {
   const id = SAMPLE_NOTES[0].id
   store.getState().updateNote(id, { size: [3.5, 4], rotation: 0.2, position: [3, -4], color: 'pink' })
   store.getState().editNote(id)
   store.getState().writeNoteText(id, { title: 'Saved while typing', body: 'Line 1\nLine 2' })
-  const saved = data.get(storeKey)!
   const original = store.getState().notes[0]
-  store.setState(store.getInitialState())
-  data.set(storeKey, saved)
-  await store.persist.rehydrate()
+  workspace.reload()
   assert.deepEqual(store.getState().notes[0], original)
   assert.equal(store.getState().editingId, null)
   assert.equal(store.getState().notes[1].size, undefined)

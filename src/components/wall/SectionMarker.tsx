@@ -54,7 +54,10 @@ function drawSection(name: string) {
   return texture
 }
 
-type SectionDrag = { id: number; fromTouch: boolean; start: Point2; offset: Point2; moved: boolean; cleanup: () => void }
+type SectionDrag = {
+  id: number; fromTouch: boolean; start: Point2; offset: Point2; moved: boolean; cleanup: () => void
+  setDragging: ReturnType<typeof useWallStore.getState>['setDragging']
+}
 
 export const SectionMarker = memo(function SectionMarker({ section, geometry }: { section: WallSection; geometry: PlaneGeometry }) {
   const marker = useRef<Mesh>(null)
@@ -66,7 +69,8 @@ export const SectionMarker = memo(function SectionMarker({ section, geometry }: 
   useEffect(() => () => {
     if (!gesture.current) return
     gesture.current.cleanup()
-    if (useWallStore.getState().draggingId === section.id) useWallStore.getState().setDragging(null)
+    const state = useWallStore.getState()
+    if (state.setDragging === gesture.current.setDragging && state.draggingId === section.id) state.setDragging(null)
     canvas.style.cursor = ''
   }, [canvas, section.id])
 
@@ -75,14 +79,15 @@ export const SectionMarker = memo(function SectionMarker({ section, geometry }: 
     if (!active) return
     gesture.current = null
     active.cleanup()
+    const state = useWallStore.getState()
+    const sameBoard = state.setDragging === active.setDragging
     if (marker.current && active.moved) {
       const { position } = marker.current
-      if (commit) useWallStore.getState().moveSection(section.id, [position.x, position.y])
+      if (commit && sameBoard) state.moveSection(section.id, [position.x, position.y])
       else position.set(...section.position, DEPTH)
       invalidate()
     }
-    const state = useWallStore.getState()
-    if (state.draggingId === section.id) state.setDragging(null)
+    if (sameBoard && state.draggingId === section.id) state.setDragging(null)
     canvas.style.cursor = ''
   }
 
@@ -97,10 +102,14 @@ export const SectionMarker = memo(function SectionMarker({ section, geometry }: 
     const id = event.pointerId
     const fromTouch = event.nativeEvent.pointerType === 'touch'
     const unwatch = watchNotePointer(window, canvas, id, fromTouch, () => finish(false))
+    const unwatchBoard = useWallStore.subscribe((current) => {
+      if (current.setDragging !== state.setDragging) finish(false)
+    })
     const release = captureNotePointer(event.target, id)
     gesture.current = {
       id, fromTouch, start: [event.clientX, event.clientY], offset: [hit.x - section.position[0], hit.y - section.position[1]],
-      moved: false, cleanup: () => { unwatch(); release() },
+      moved: false, setDragging: state.setDragging,
+      cleanup: () => { unwatchBoard(); unwatch(); release() },
     }
     if (!fromTouch) state.setDragging(section.id)
     state.select(null)
@@ -117,7 +126,7 @@ export const SectionMarker = memo(function SectionMarker({ section, geometry }: 
     if (!hit) return
     if (!active.moved) {
       active.moved = true
-      useWallStore.getState().setDragging(section.id, active.fromTouch)
+      active.setDragging(section.id, active.fromTouch)
     }
     const point = clampSectionPosition([hit.x - active.offset[0], hit.y - active.offset[1]])
     object.position.set(...point, DEPTH)

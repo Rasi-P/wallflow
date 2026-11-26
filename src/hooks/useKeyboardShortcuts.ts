@@ -44,7 +44,10 @@ export function handleWallShortcut(event: KeyboardEvent) {
       break
     case '+': case '=': state.commandCamera('zoom', 1 / 1.2); break
     case '-': state.commandCamera('zoom', 1.2); break
-    case 'escape': state.select(null); break
+    case 'escape':
+      if (state.tutorial !== null) { event.preventDefault(); state.exitTutorial() }
+      else state.select(null)
+      break
     case 'enter':
       if (state.selectedId && !event.repeat && !target?.closest?.('button, a, [role="button"]')) {
         event.preventDefault(); state.editNote(state.selectedId)

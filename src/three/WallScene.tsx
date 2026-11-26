@@ -12,19 +12,7 @@ import { NoteEditorPosition } from './NoteEditorPosition'
 import { WallLoading } from '../components/ui/WallLoading'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 
-function Lighting() {
-  const warm = useWallStore((s) => s.lighting === 'warm')
-  return <>
-    <color attach="background" args={[warm ? '#eee6da' : '#f1eee7']} />
-    <ambientLight intensity={0.72} color={warm ? '#ffe8ca' : '#fffdfa'} />
-    <hemisphereLight args={['#fffdf8', '#c1b9aa', 1.05]} />
-    <directionalLight position={[-5, 8, 10]} intensity={2.35} color={warm ? '#ffdfac' : '#fff9ed'} castShadow
-      shadow-mapSize={[2048, 2048]} shadow-camera-left={-19} shadow-camera-right={19}
-      shadow-camera-top={15} shadow-camera-bottom={-15} shadow-camera-near={0.1} shadow-camera-far={45}
-      shadow-bias={-0.00005} shadow-normalBias={0.015} shadow-radius={5} />
-    <directionalLight position={[8, -3, 7]} intensity={0.28} color="#e1e9fa" />
-  </>
-}
+import { EnvironmentLighting } from './EnvironmentLighting'
 
 export default memo(function WallScene({ editorElement }: { editorElement: HTMLDivElement | null }) {
   const mode = useWallStore((s) => s.mode)
@@ -70,7 +58,7 @@ export default memo(function WallScene({ editorElement }: { editorElement: HTMLD
       }}
       onPointerMissed={() => useWallStore.getState().select(null)}
       fallback={<div className="webgl-fallback"><h2>Your wall needs WebGL.</h2><p>Open WALLFLOW in a browser with hardware acceleration enabled.</p></div>}>
-      <Lighting />
+      <EnvironmentLighting />
       <Wall group={wall} prototypeSurface={prototypeSurface} reducedMotion={reducedMotion} />
       <CameraRig wall={wall} reducedMotion={reducedMotion} />
       <NoteEditorPosition wall={wall} element={editorElement} />

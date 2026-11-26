@@ -4,19 +4,20 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { MathUtils, MeshBasicMaterial, PlaneGeometry } from 'three'
 import type { Group } from 'three'
 import { useWallStore } from '../../stores/wallStore'
-import { createContactShadow, createPlasterTexture, createWindowLight } from '../../three/textures'
+import { createContactShadow } from '../../three/textures'
 import { createPaperGeometry } from '../../three/paperGeometry'
 import { noteLayerDepth } from '../../three/noteLayers'
 import { CONTACT_SHADOW_OPACITY } from '../../three/paperMotion'
 import type { PaperMotionFrame } from '../../three/paperMotion'
 import { createBakedNoteSurface } from '../../three/noteSurface'
 import type { BindNoteSurface } from '../../three/noteSurface'
-import { NOTE_HEIGHT, NOTE_WIDTH, WALL_HEIGHT, WALL_WIDTH } from '../../utils/constants'
+import { NOTE_HEIGHT, NOTE_WIDTH } from '../../utils/constants'
 import { StickyNote } from '../sticky-note/StickyNote'
 import type { StickyNoteData } from '../../types/wall'
 import { hasWallFilters, matchesFilters } from '../../utils/noteSearch'
 import { SECTION_HEIGHT, SECTION_WIDTH } from '../../utils/wallSections'
 import { SectionMarker } from './SectionMarker'
+import { WallSurface } from './WallSurface'
 
 function noteTransformsChanged(previous: StickyNoteData[] | null, notes: StickyNoteData[]) {
   if (!previous || previous.length !== notes.length) return true
@@ -28,7 +29,9 @@ function noteTransformsChanged(previous: StickyNoteData[] | null, notes: StickyN
   })
 }
 
-export function Wall({ group, prototypeSurface, reducedMotion = false }: { group: RefObject<Group | null>; prototypeSurface?: BindNoteSurface | null; reducedMotion?: boolean }) {
+export function Wall({ group, prototypeSurface, reducedMotion = false }: {
+  group: RefObject<Group | null>; prototypeSurface?: BindNoteSurface | null; reducedMotion?: boolean
+}) {
   const gl = useThree((state) => state.gl)
   const invalidate = useThree((state) => state.invalidate)
   const allNotes = useWallStore((s) => s.notes)
@@ -46,14 +49,11 @@ export function Wall({ group, prototypeSurface, reducedMotion = false }: { group
   const targetTilt = MathUtils.degToRad(rotation[0])
   const targetTurn = MathUtils.degToRad(rotation[1])
   const bakedSurface = useMemo(createBakedNoteSurface, [])
-  const plaster = useMemo(createPlasterTexture, [])
-  const windowLight = useMemo(createWindowLight, [])
   const paperGeometry = useMemo(createPaperGeometry, [])
   const sectionGeometry = useMemo(() => new PlaneGeometry(SECTION_WIDTH, SECTION_HEIGHT), [])
   const paperMotions = useMemo(() => new Set<PaperMotionFrame>(), [])
   const contactGeometry = useMemo(() => new PlaneGeometry(NOTE_WIDTH + 0.5, NOTE_HEIGHT + 0.5), [])
   const contactMaterial = useMemo(() => new MeshBasicMaterial({ map: createContactShadow(), opacity: CONTACT_SHADOW_OPACITY, transparent: true, depthWrite: false, toneMapped: false }), [])
-  useEffect(() => () => { plaster.dispose(); windowLight.dispose() }, [plaster, windowLight])
   useEffect(() => () => {
     paperGeometry.dispose()
     sectionGeometry.dispose()
@@ -90,18 +90,7 @@ export function Wall({ group, prototypeSurface, reducedMotion = false }: { group
 
   return (
     <group ref={group} name="wall-and-attached-notes">
-      <mesh receiveShadow position={[0, 0, -0.19]} name="solid-plaster-wall"
-        onPointerDown={(event) => event.stopPropagation()}
-        onPointerOver={(event) => event.stopPropagation()}
-        onDoubleClick={(event) => event.stopPropagation()}
-        onClick={(event) => { event.stopPropagation(); useWallStore.getState().select(null) }}>
-        <boxGeometry args={[WALL_WIDTH, WALL_HEIGHT, 0.38]} />
-        <meshStandardMaterial color="#f7f3eb" roughness={0.98} bumpMap={plaster} bumpScale={0.013} />
-      </mesh>
-      <mesh position={[5.6, -0.8, 0.003]} raycast={() => null}>
-        <planeGeometry args={[WALL_WIDTH - 2 * 5.6, 19]} />
-        <meshBasicMaterial map={windowLight} transparent depthWrite={false} polygonOffset polygonOffsetFactor={-1} />
-      </mesh>
+      <WallSurface />
       {sections.map((section) => <SectionMarker key={section.id} section={section} geometry={sectionGeometry} />)}
       {notes.map((note, index) => <StickyNote key={note.id} note={note} visible={visibleIds.has(note.id)} depth={noteLayerDepth(index)} paperGeometry={paperGeometry}
         contactGeometry={contactGeometry} contactMaterial={contactMaterial} paperMotions={paperMotions} bindSurface={prototypeSurface ?? bakedSurface} />)}

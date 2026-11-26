@@ -7,6 +7,7 @@ import { MAX_BODY_LENGTH, MAX_TITLE_LENGTH, NOTE_COLORS } from '../../utils/cons
 import { getEditorKeyAction } from '../../utils/noteEditorKeys'
 import { getChecklistProgress } from '../../utils/noteTasks'
 import { NoteTaskDetails } from './NoteTaskDetails'
+import { NOTE_TITLE_FONTS } from '../../utils/appearance'
 
 export function NoteEditor({ note, anchor, registerAnchor }: {
   note: StickyNoteData; anchor: RefObject<HTMLDivElement | null>; registerAnchor: (node: HTMLDivElement | null) => void
@@ -51,6 +52,7 @@ export function NoteEditor({ note, anchor, registerAnchor }: {
       useWallStore.getState().finishEditing(action === 'cancel-empty')
     }}>
     <textarea ref={titleInput} aria-label="Note title" className="inline-note-title" rows={2} maxLength={MAX_TITLE_LENGTH}
+      style={{ fontFamily: NOTE_TITLE_FONTS[note.typography ?? 'handwritten'] }}
       placeholder="Note title" value={note.title} onChange={(event) => useWallStore.getState().writeNoteText(note.id, { title: event.target.value })} />
     <textarea aria-label="Note description" className="inline-note-body" rows={4} maxLength={MAX_BODY_LENGTH}
       placeholder="Add a description" value={note.body} onChange={(event) => useWallStore.getState().writeNoteText(note.id, { body: event.target.value })} />

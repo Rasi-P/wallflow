@@ -93,6 +93,7 @@ npm run build
 
 ## Use your wall
 
+- **First launch:** choose **Set up my wall** to pick an environment, paper color, and starter notes, or open a blank wall immediately. The optional eight-step tour highlights live controls. Dismissing or completing setup keeps the welcome off on future visits.
 - **Select (V):** drag a note in its wall plane. Double-click to edit. On mobile, tap a note and choose **Edit note**.
 - **Pan (H):** drag the wall, right-drag with a mouse, or use two fingers on a touch screen.
 - **Orbit (O):** drag to move the camera around the wall.
@@ -108,16 +109,17 @@ npm run build
 - **Search and filters:** open the search button or press Cmd/Ctrl+K. Search titles, descriptions, and checklists. Combine priority, completion, due date, section, and archive filters. Select an active result to focus it or an archived result to open it in Archive. Clear filters from the search panel or the wall footer.
 - **Sections:** open **Sections** in search to create, rename, delete, or focus a section. Drag its label in Select mode or use the arrow buttons in the section editor. A dropped note joins the section under its center. Use **Note options** to assign a section without moving the note. Deleting a section leaves its notes on the wall.
 - **Focus:** select a note and press **F** or choose **Focus note** from **Note options**. Select a section name in the directory to focus it. **0** or the reset button restores the home view.
-- **Settings:** wall name, daylight / warm lighting, and interaction hints.
-- **Help:** the bottom-right button or **?**.
+- **Settings:** choose Minimal Wall, Professor’s Study, Creative Studio, or Scientist’s Lab. Adjust plaster shade, lighting tone and intensity, and ambience, or set the color, title lettering, size, and rotation for new notes. Appearance settings apply immediately. **Reset appearance and note defaults** keeps your wall name, hints, notes, and their placement.
+- **Help:** the bottom-right button or **?** opens the wall guide and keyboard shortcut reference. Start the walkthrough again from Help or Settings.
 
-After Google sign-in, notes and settings remain in this browser's local storage. If storage is blocked or full, the header indicates that work is only available for the session.
+After signing in with Google, WALLFLOW opens the wall saved on this browser. Anyone who signs in on the same browser origin can access that local data. On first load, WALLFLOW copies existing `wallflow-wall-v1` data into the first board in `wallflow-workspace-v2` and retains the original key as a backup. The workspace is independent of the Google account. Sign out under **Wall settings → Google account**. The header shows when storage is unavailable and current changes are available only for the session.
 
 ## Source layout
 
 ```text
 src/
-  app/                      Application composition
+  app/                      Session gate and workspace composition
+  auth/                     Session state, same-origin API, and sign-in screen
   components/
     wall/                   Solid wall and its attached note group
     sticky-note/            Raycast paper mesh and accessible HTML editor
@@ -141,6 +143,8 @@ Camera controls use Drei OrbitControls with damped movement, responsive framing,
 
 The scene draws on demand. Camera, wall and paper motion schedule frames until they settle. Editing, resizing, texture changes and graphics-context recovery request a draw when needed. Reduced motion disables camera easing and wall rotation animation.
 
+Themes reuse the plaster, window and note textures, along with the wall, paper and accent geometry. A theme changes the materials and lights in place. Wall shade, lighting and ambience overrides carry across themes. New-note defaults stay separate from each note’s own color, lettering, size and rotation.
+
 For a local comparison, append `?noteRendering=paper-ink` to the wall URL. The prototype uses one shared paper-finish texture and shares full-resolution ink masks across notes with the same writing and doodle, even when their colors differ. Remove the parameter to use the default baked renderer. If the prototype fails to load or its shader fails to link, the wall falls back to baked notes.
 
 ## Current limits
@@ -152,7 +156,7 @@ For a local comparison, append `?noteRendering=paper-ink` to the wall URL. The p
 - Checklists support up to 24 items. The paper previews the first three and shows progress for the whole checklist.
 - Note titles are limited to 72 characters and bodies to 240. The paper view may abbreviate long text; the editor retains it in full.
 - Note titles use an installed handwriting face when available. Descriptions, checklists, and the interface use self-hosted DM Sans.
-- Fresh walls start with seven sample tasks and a dismissible welcome. The starter arrangement fits around the controls. On mobile, zoom in to read small text. Existing saved walls keep their notes and positions.
+- First-time setup lets you keep the seven sample tasks or start blank. A blank start removes untouched starter notes and keeps any work you already added or edited. Existing saved walls bypass onboarding. Walkthrough progress is kept for the current session.
 - Wall rotation is bounded to ±25° tilt and ±30° turn, applied through its dedicated controls. Reset camera returns to the initial framing.
 - WebGL and hardware acceleration are required. Shading and performance depend on the device; pixel density is capped and textures are generated locally.
 

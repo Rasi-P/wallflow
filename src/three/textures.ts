@@ -2,6 +2,7 @@ import { CanvasTexture, RepeatWrapping, SRGBColorSpace } from 'three'
 import type { StickyNoteData } from '../types/wall.ts'
 import { NOTE_COLORS } from '../utils/constants.ts'
 import type { TaskInk } from '../utils/noteTasks.ts'
+import { NOTE_BODY_FONT, NOTE_TITLE_FONTS } from '../utils/appearance.ts'
 
 function canvas(size: number) {
   const element = document.createElement('canvas')
@@ -83,7 +84,7 @@ function ellipsize(context: CanvasRenderingContext2D, line: string, width: numbe
 export const NOTE_TEXTURE_SIZE = 1024
 export const DEFAULT_NOTE_TITLE = 'A fresh little thought.'
 export const DEFAULT_NOTE_BODY = 'Double-click to make it yours.'
-export type NoteInk = Pick<StickyNoteData, 'title' | 'body' | 'doodle'> & { task?: TaskInk }
+export type NoteInk = Pick<StickyNoteData, 'title' | 'body' | 'doodle' | 'typography'> & { task?: TaskInk }
 export type NoteArtwork = NoteInk & Pick<StickyNoteData, 'color'>
 let paperFinish: HTMLCanvasElement | undefined
 
@@ -118,13 +119,12 @@ export function paintNoteInk(ctx: CanvasRenderingContext2D, note: NoteInk, ink: 
   ctx.strokeStyle = ink
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
-  const writing = '"DM Sans", sans-serif'
-  const handwriting = `"Noteworthy", "Segoe Print", "Bradley Hand", ${writing}`
+  const titleFont = NOTE_TITLE_FONTS[note.typography ?? 'handwritten']
   const title = note.title || DEFAULT_NOTE_TITLE
   const width = 800
-  ctx.font = `700 82px ${handwriting}`
+  ctx.font = `700 82px ${titleFont}`
   let titleLines = wrap(ctx, title, width)
-  if (titleLines.length > 2) { ctx.font = `700 70px ${handwriting}`; titleLines = wrap(ctx, title, width) }
+  if (titleLines.length > 2) { ctx.font = `700 70px ${titleFont}`; titleLines = wrap(ctx, title, width) }
   let y = 182
   for (const [index, line] of titleLines.slice(0, 3).entries()) {
     ctx.fillText(index === 2 && titleLines.length > 3 ? ellipsize(ctx, line, width) : line, 108, y, width)
@@ -132,12 +132,12 @@ export function paintNoteInk(ctx: CanvasRenderingContext2D, note: NoteInk, ink: 
   }
   y += 38
   const body = note.body || (note.task ? '' : DEFAULT_NOTE_BODY)
-  ctx.font = `450 56px ${writing}`
+  ctx.font = `450 56px ${NOTE_BODY_FONT}`
   let bodyLines = wrap(ctx, body, width)
   let lineHeight = 79
   const bodyLimit = note.task?.rows.length ? 590 : 846
   if (y + (bodyLines.length - 1) * lineHeight > bodyLimit) {
-    ctx.font = `450 49px ${writing}`
+    ctx.font = `450 49px ${NOTE_BODY_FONT}`
     bodyLines = wrap(ctx, body, width)
     lineHeight = 67
   }
@@ -148,7 +148,7 @@ export function paintNoteInk(ctx: CanvasRenderingContext2D, note: NoteInk, ink: 
   }
   if (note.task) {
     if (note.doodle && !note.task.rows.length && y < 690) drawDoodle(ctx, note.doodle, 750, 730)
-    paintTaskInk(ctx, note.task, writing, width)
+    paintTaskInk(ctx, note.task, NOTE_BODY_FONT, width)
   } else if (note.doodle && y < 770) {
     drawDoodle(ctx, note.doodle, 750, 805)
   }

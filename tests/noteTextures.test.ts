@@ -83,3 +83,15 @@ test('editing and deleting shared notes preserves artwork until its last user le
   assert.equal(first.texture.image.width, 0)
   assert.equal(first.texture.image.height, 0)
 })
+
+test('baked artwork shares legacy lettering and separates different title styles', (t) => {
+  mockCanvas(t)
+  const pool = new NoteTexturePool()
+  const artwork = { ...SAMPLE_NOTES[0], doodle: undefined }
+  const legacy = pool.update(null, artwork)
+  const handwritten = pool.update(null, { ...artwork, typography: 'handwritten' })
+  const sans = pool.update(null, { ...artwork, typography: 'sans' })
+  assert.equal(handwritten, legacy)
+  assert.notEqual(sans.texture, legacy.texture)
+  for (const entry of [legacy, handwritten, sans]) pool.release(entry)
+})

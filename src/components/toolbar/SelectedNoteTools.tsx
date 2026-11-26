@@ -51,11 +51,11 @@ export function SelectedNoteTools({ id, count }: { id: string; count: number }) 
       </label>}
     </div>}
     <div className="selection-actions" role="group" aria-label="Selected note actions">
-      <IconButton label="Edit note" onClick={() => actions.editNote(id)}><PencilLine size={16} /></IconButton>
+      <IconButton data-tour-anchor="edit" label="Edit note" onClick={() => actions.editNote(id)}><PencilLine size={16} /></IconButton>
       <IconButton label="Change note color" active={panel === 'color'} aria-expanded={panel === 'color'}
         aria-controls={panel === 'color' ? 'note-action-popover' : undefined} onClick={(event) => toggle('color', event.currentTarget)}><Palette size={17} /></IconButton>
       <IconButton label="Rotate note 15 degrees clockwise" onClick={() => actions.updateNote(id, { rotation: (note.rotation - Math.PI / 12) % (Math.PI * 2) })}><RotateCw size={17} /></IconButton>
-      <IconButton label="Resize note" active={panel === 'size'} aria-expanded={panel === 'size'}
+      <IconButton data-tour-anchor="resize" label="Resize note" active={panel === 'size'} aria-expanded={panel === 'size'}
         aria-controls={panel === 'size' ? 'note-action-popover' : undefined} onClick={(event) => toggle('size', event.currentTarget)}><Scaling size={17} /></IconButton>
       <IconButton label="Note options" active={panel === 'tasks'} aria-expanded={panel === 'tasks'}
         aria-controls={panel === 'tasks' ? 'note-action-popover' : undefined} onClick={(event) => toggle('tasks', event.currentTarget)}><ListChecks size={17} /></IconButton>

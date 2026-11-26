@@ -104,7 +104,11 @@ export function createPaperInkSurface(): BindNoteSurface {
         // Treat palette values as raw sRGB numbers. The fragment shader decodes the composite.
         uniforms.wallflowPaperTint.value.setStyle(paper, LinearSRGBColorSpace)
         uniforms.wallflowInkTint.value.setStyle(ink, LinearSRGBColorSpace)
-        const key = JSON.stringify([artwork.title || DEFAULT_NOTE_TITLE, artwork.task ? artwork.body : artwork.body || DEFAULT_NOTE_BODY, artwork.doodle, artwork.task])
+        const key = JSON.stringify([
+          artwork.title || DEFAULT_NOTE_TITLE,
+          artwork.task ? artwork.body : artwork.body || DEFAULT_NOTE_BODY,
+          artwork.doodle, artwork.task, artwork.typography ?? 'handwritten',
+        ])
         if (mask?.key === key) return
 
         const existing = masks.get(key)

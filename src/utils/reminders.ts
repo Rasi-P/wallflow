@@ -1,4 +1,5 @@
 import type { NoteReminder, StickyNoteData } from '../types/wall.ts'
+import type { BoardId, SavedWorkspace } from '../types/workspace.ts'
 import { isDueDate, localDay } from './taskDates.ts'
 
 export function isReminderTime(value: unknown): value is number {
@@ -69,7 +70,7 @@ export async function requestReminderPermission(notifications?: ReminderNotifica
   catch { return 'unavailable' }
 }
 
-export function deliverReminders(notes: StickyNoteData[], notified: string[], now: number, notifications?: ReminderNotifications) {
+export function deliverReminders(notes: StickyNoteData[], notified: string[], now: number, notifications?: ReminderNotifications, boardId?: BoardId) {
   const delivered: string[] = []
   let nextAt: number | undefined
   let failed = false
@@ -80,7 +81,8 @@ export function deliverReminders(notes: StickyNoteData[], notified: string[], no
     if (reminder.at > now) { nextAt = reminder.at; break }
     if (notifications.permission !== 'granted') break
     try {
-      notifications.show(note.title || 'Sticky note reminder', { tag: `wallflow-${reminder.id}`, body: 'A reminder from your WALLFLOW wall.' })
+      const tag = boardId === undefined ? reminder.id : JSON.stringify([boardId, reminder.id])
+      notifications.show(note.title || 'Sticky note reminder', { tag: `wallflow-${tag}`, body: 'A reminder from your WALLFLOW wall.' })
       delivered.push(reminder.id)
       seen.add(reminder.id)
     } catch {
@@ -89,4 +91,20 @@ export function deliverReminders(notes: StickyNoteData[], notified: string[], no
     }
   }
   return { delivered, nextAt, failed }
+}
+
+export function deliverWorkspaceReminders(workspace: SavedWorkspace, now: number, notifications?: ReminderNotifications) {
+  const receipts: { boardId: BoardId; ids: string[] }[] = []
+  let nextAt: number | undefined
+  let failed = false
+  if (notifications?.permission === 'granted') {
+    for (const boardId of workspace.boardOrder) {
+      const board = workspace.boards[boardId]
+      const result = deliverReminders(board.document.notes, board.notifiedReminders, now, notifications, boardId)
+      if (result.delivered.length) receipts.push({ boardId, ids: result.delivered })
+      if (result.nextAt !== undefined) nextAt = Math.min(nextAt ?? Infinity, result.nextAt)
+      failed ||= result.failed
+    }
+  }
+  return { receipts, nextAt, failed }
 }

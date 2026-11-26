@@ -13,6 +13,7 @@ export const NOTE_HEIGHT = 2.78
 export const WALL_WIDTH = 32
 export const WALL_HEIGHT = 22
 export const MAX_NOTES = 60
+export const MAX_BOARD_NAME_LENGTH = 48
 export const MAX_TITLE_LENGTH = 72
 export const MAX_BODY_LENGTH = 240
 

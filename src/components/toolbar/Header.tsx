@@ -18,9 +18,14 @@ export function Header() {
   const tasksOpen = useWallStore((s) => s.tasksOpen)
   const [saved, setSaved] = useState(storageHealth.available)
   useEffect(() => {
-    const failed = () => setSaved(false)
-    window.addEventListener('wallflow-storage-error', failed)
-    return () => window.removeEventListener('wallflow-storage-error', failed)
+    const update = () => setSaved(storageHealth.available)
+    window.addEventListener('wallflow-storage-error', update)
+    window.addEventListener('wallflow-storage-restored', update)
+    update()
+    return () => {
+      window.removeEventListener('wallflow-storage-error', update)
+      window.removeEventListener('wallflow-storage-restored', update)
+    }
   }, [])
   return <header className="app-header">
     <div className="brand-group">
@@ -30,9 +35,9 @@ export function Header() {
     </div>
     <div className="header-actions"><span className={`save-status${saved ? '' : ' is-error'}`} role="status" title={saved ? undefined : 'Changes are saved for this session only'}>
       {saved ? <Check size={13} /> : <CircleAlert size={16} aria-hidden="true" />}<span>{saved ? 'Saved on this device' : 'Session only · storage unavailable'}</span></span>
-      <IconButton id="wall-task-panel-trigger" label="Today, reminders, and archive" data-tooltip="Today & tasks" active={tasksOpen} aria-expanded={tasksOpen}
+      <IconButton id="wall-task-panel-trigger" data-tour-anchor="tasks" label="Today, reminders, and archive" data-tooltip="Today & tasks" active={tasksOpen} aria-expanded={tasksOpen}
         aria-controls={tasksOpen ? 'wall-task-panel' : undefined} onClick={() => useWallStore.getState().setPanel('tasksOpen', !tasksOpen)}><CalendarDays size={18} /><DailyProgressBadge /></IconButton>
-      <IconButton label="Find notes and sections" data-tooltip="Find on wall (Ctrl/⌘ K)" aria-keyshortcuts="Control+k Meta+k" onClick={() => useWallStore.getState().setPanel('searchOpen', true)}><Search size={19} /></IconButton>
+      <IconButton data-tour-anchor="find" label="Find notes and sections" data-tooltip="Find on wall (Ctrl/⌘ K)" aria-keyshortcuts="Control+k Meta+k" onClick={() => useWallStore.getState().setPanel('searchOpen', true)}><Search size={19} /></IconButton>
       <IconButton label="Wall settings" onClick={() => useWallStore.getState().setPanel('settingsOpen', true)}><Settings2 size={19} /></IconButton>
     </div>
   </header>

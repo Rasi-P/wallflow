@@ -13,7 +13,7 @@ export class NoteTexturePool {
   private readonly entries = new Map<string, NoteTextureLease>()
 
   update(previous: NoteTextureLease | null, artwork: NoteArtwork): NoteTextureLease {
-    const key = JSON.stringify([artwork.title, artwork.body, artwork.color, artwork.doodle, artwork.task])
+    const key = JSON.stringify([artwork.title, artwork.body, artwork.color, artwork.doodle, artwork.task, artwork.typography ?? 'handwritten'])
     if (previous?.key === key) return previous
 
     const existing = this.entries.get(key)

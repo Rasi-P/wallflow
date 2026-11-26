@@ -16,6 +16,8 @@ import { TasksPanel } from '../components/ui/TasksPanel'
 import { countActiveNotes } from '../utils/noteTasks'
 import { DEFAULT_FILTERS, hasWallFilters } from '../utils/noteSearch'
 
+import type { ActiveSession } from '../auth/session'
+
 const WallScene = lazy(() => import('../three/WallScene'))
 
 function Welcome() {
@@ -27,7 +29,7 @@ function Welcome() {
   </section>
 }
 
-export function App() {
+export function App({ session, onSignOut }: { session: ActiveSession; onSignOut: () => void }) {
   useKeyboardShortcuts()
   useLocalDay()
   useReminderScheduler()
@@ -60,7 +62,7 @@ export function App() {
     </footer>
     {note && <NoteEditor key={note.id} note={note} anchor={editorAnchor} registerAnchor={registerEditor} />}
     {searchOpen && <SearchDialog />}
-    {settingsOpen && <SettingsDialog />}
+    {settingsOpen && <SettingsDialog session={session} onSignOut={onSignOut} />}
     {helpOpen && <HelpDialog />}
   </main>
 }

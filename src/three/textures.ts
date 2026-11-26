@@ -93,13 +93,13 @@ export function getPaperFinish() {
   const { element, context: ctx } = canvas(NOTE_TEXTURE_SIZE)
   const grain = random(19)
   for (let i = 0; i < 55000; i++) {
-    ctx.fillStyle = grain() > 0.5 ? 'rgba(255,255,245,0.061)' : 'rgba(83,70,48,0.033)'
-    ctx.fillRect(grain() * NOTE_TEXTURE_SIZE, grain() * NOTE_TEXTURE_SIZE, 0.7 + grain() * 1.25, i % 6 === 0 ? 0.6 + grain() * 3.1 : 0.8 + grain())
+    ctx.fillStyle = grain() > 0.5 ? 'rgba(255,255,252,0.075)' : 'rgba(72,69,60,0.041)'
+    ctx.fillRect(grain() * NOTE_TEXTURE_SIZE, grain() * NOTE_TEXTURE_SIZE, i % 8 === 0 ? 1 + grain() * 3.8 : 0.6 + grain() * 1.4, 0.65 + grain() * 1.15)
   }
   const adhesive = ctx.createLinearGradient(0, 0, 0, 190)
-  adhesive.addColorStop(0, 'rgba(90,70,35,0.052)')
-  adhesive.addColorStop(0.55, 'rgba(90,70,35,0.021)')
-  adhesive.addColorStop(1, 'rgba(90,70,35,0)')
+  adhesive.addColorStop(0, 'rgba(65,63,55,0.05)')
+  adhesive.addColorStop(0.55, 'rgba(65,63,55,0.018)')
+  adhesive.addColorStop(1, 'rgba(65,63,55,0)')
   ctx.fillStyle = adhesive
   ctx.fillRect(0, 0, NOTE_TEXTURE_SIZE, 190)
   paperFinish = element
@@ -229,15 +229,15 @@ function drawDoodle(ctx: CanvasRenderingContext2D, doodle: NonNullable<NoteInk['
 
 export function createContactShadow() {
   const { element, context: ctx } = canvas(256)
-  ctx.filter = 'blur(16px)'
-  ctx.fillStyle = 'rgba(63,50,32,0.12)'
-  ctx.fillRect(38, 44, 191, 184)
-  ctx.filter = 'blur(6px)'
-  ctx.fillStyle = 'rgba(55,44,29,0.15)'
-  ctx.fillRect(34, 28, 190, 178)
+  ctx.filter = 'blur(18px)'
+  ctx.fillStyle = 'rgba(48,50,47,0.13)'
+  ctx.fillRect(38, 48, 191, 172)
+  ctx.filter = 'blur(8px)'
+  ctx.fillStyle = 'rgba(48,50,47,0.115)'
+  ctx.fillRect(33, 29, 187, 177)
   ctx.filter = 'blur(4px)'
-  ctx.fillStyle = 'rgba(55,44,29,0.18)'
-  ctx.fillRect(35, 25, 183, 12)
+  ctx.fillStyle = 'rgba(48,50,47,0.16)'
+  ctx.fillRect(35, 25, 182, 10)
   return new CanvasTexture(element)
 }
 

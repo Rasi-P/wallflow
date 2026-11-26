@@ -1,22 +1,36 @@
 import { Float32BufferAttribute, PlaneGeometry } from 'three'
 import { NOTE_HEIGHT, NOTE_WIDTH } from '../utils/constants.ts'
 
-export function createPaperGeometry() {
+const paperShapes = [
+  { left: 0.021, right: 0.069, curl: 0.048, phase: 0 },
+  { left: 0.066, right: 0.023, curl: 0.046, phase: 1.15 },
+  { left: 0.036, right: 0.045, curl: 0.041, phase: 2.5 },
+]
+export const PAPER_SHAPE_COUNT = paperShapes.length
+
+export function paperShapeForId(id: string) {
+  let hash = 2166136261
+  for (let i = 0; i < id.length; i++) hash = Math.imul(hash ^ id.charCodeAt(i), 16777619)
+  return (hash >>> 0) % PAPER_SHAPE_COUNT
+}
+
+export function createPaperGeometry(variant = 0) {
   const columns = 24
   const rows = 28
   const stride = columns + 1
   const thickness = 0.011
   const geometry = new PlaneGeometry(NOTE_WIDTH, NOTE_HEIGHT, columns, rows)
   const positions = geometry.attributes.position
+  const shape = paperShapes[variant] ?? paperShapes[0]
   for (let i = 0; i < positions.count; i++) {
     const x = positions.getX(i) / NOTE_WIDTH + 0.5
     const down = 0.5 - positions.getY(i) / NOTE_HEIGHT
     // The adhesive edge stays almost flush; the bottom subtly lifts from the plaster.
-    const corner = 0.025 * (1 - x) ** 6 + 0.061 * x ** 7
-    const curl = down ** 3 * (0.052 + corner)
-    const ripple = Math.sin(x * Math.PI * 2 + down * 2) * 0.004 * down
-    const edgeX = (2 * x - 1) ** 5 * 0.012 * Math.sin(down * 17 + 0.7)
-    const edgeY = (1 - 2 * down) ** 5 * 0.009 * Math.sin(x * 19 + down)
+    const corner = shape.left * (1 - x) ** 6 + shape.right * x ** 7
+    const curl = down ** 3 * (shape.curl + corner)
+    const ripple = Math.sin(x * Math.PI * 2 + down * 2 + shape.phase) * 0.004 * down
+    const edgeX = (2 * x - 1) ** 5 * 0.013 * Math.sin(down * 17 + 0.7 + shape.phase)
+    const edgeY = (1 - 2 * down) ** 5 * 0.009 * Math.sin(x * 19 + down + shape.phase)
     positions.setXYZ(i, positions.getX(i) + edgeX, positions.getY(i) + edgeY, curl + ripple)
   }
 

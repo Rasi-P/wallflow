@@ -5,7 +5,7 @@ import { MathUtils, MeshBasicMaterial, PlaneGeometry } from 'three'
 import type { Group } from 'three'
 import { useWallStore } from '../../stores/wallStore'
 import { createContactShadow } from '../../three/textures'
-import { createPaperGeometry } from '../../three/paperGeometry'
+import { createPaperGeometry, PAPER_SHAPE_COUNT, paperShapeForId } from '../../three/paperGeometry'
 import { noteLayerDepth } from '../../three/noteLayers'
 import { CONTACT_SHADOW_OPACITY } from '../../three/paperMotion'
 import type { PaperMotionFrame } from '../../three/paperMotion'
@@ -49,18 +49,18 @@ export function Wall({ group, prototypeSurface, reducedMotion = false }: {
   const targetTilt = MathUtils.degToRad(rotation[0])
   const targetTurn = MathUtils.degToRad(rotation[1])
   const bakedSurface = useMemo(createBakedNoteSurface, [])
-  const paperGeometry = useMemo(createPaperGeometry, [])
+  const paperShapes = useMemo(() => Array.from({ length: PAPER_SHAPE_COUNT }, (_, index) => createPaperGeometry(index)), [])
   const sectionGeometry = useMemo(() => new PlaneGeometry(SECTION_WIDTH, SECTION_HEIGHT), [])
   const paperMotions = useMemo(() => new Set<PaperMotionFrame>(), [])
   const contactGeometry = useMemo(() => new PlaneGeometry(NOTE_WIDTH + 0.5, NOTE_HEIGHT + 0.5), [])
   const contactMaterial = useMemo(() => new MeshBasicMaterial({ map: createContactShadow(), opacity: CONTACT_SHADOW_OPACITY, transparent: true, depthWrite: false, toneMapped: false }), [])
   useEffect(() => () => {
-    paperGeometry.dispose()
+    paperShapes.forEach((shape) => shape.dispose())
     sectionGeometry.dispose()
     contactGeometry.dispose()
     contactMaterial.map?.dispose()
     contactMaterial.dispose()
-  }, [paperGeometry, sectionGeometry, contactGeometry, contactMaterial])
+  }, [paperShapes, sectionGeometry, contactGeometry, contactMaterial])
   useEffect(() => {
     const previous = previousNotes.current
     if (noteTransformsChanged(previous?.all ?? null, notes) || noteTransformsChanged(previous?.visible ?? null, visibleNotes)) {
@@ -92,7 +92,7 @@ export function Wall({ group, prototypeSurface, reducedMotion = false }: {
     <group ref={group} name="wall-and-attached-notes">
       <WallSurface />
       {sections.map((section) => <SectionMarker key={section.id} section={section} geometry={sectionGeometry} />)}
-      {notes.map((note, index) => <StickyNote key={note.id} note={note} visible={visibleIds.has(note.id)} depth={noteLayerDepth(index)} paperGeometry={paperGeometry}
+      {notes.map((note, index) => <StickyNote key={note.id} note={note} visible={visibleIds.has(note.id)} depth={noteLayerDepth(index)} paperGeometry={paperShapes[paperShapeForId(note.id)]}
         contactGeometry={contactGeometry} contactMaterial={contactMaterial} paperMotions={paperMotions} bindSurface={prototypeSurface ?? bakedSurface} />)}
     </group>
   )

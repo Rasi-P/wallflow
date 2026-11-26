@@ -225,7 +225,7 @@ export const StickyNote = memo(function StickyNote({ note, visible, depth, paper
         onDoubleClick={(e) => { if (useWallStore.getState().mode === 'select') { e.stopPropagation(); useWallStore.getState().editNote(note.id) } }}
         onPointerOver={(e) => { if (useWallStore.getState().mode === 'select') { e.stopPropagation(); gl.domElement.style.cursor = 'grab' } }}
         onPointerOut={() => { if (!drag.current) gl.domElement.style.cursor = '' }}>
-        <meshStandardMaterial ref={material} roughness={0.93} side={DoubleSide} />
+        <meshStandardMaterial ref={material} roughness={0.97} side={DoubleSide} />
       </mesh>
       {selected && !editing && <mesh position={[0, 0, depth - 0.015]} raycast={() => null}>
         <planeGeometry args={[NOTE_WIDTH + 0.078, NOTE_HEIGHT + 0.078]} />

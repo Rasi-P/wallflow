@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { PerspectiveCamera, Vector3 } from 'three'
-import { createPaperGeometry } from '../src/three/paperGeometry.ts'
+import { createPaperGeometry, paperShapeForId, PAPER_SHAPE_COUNT } from '../src/three/paperGeometry.ts'
 import { getPickupLift, stepPaperLift } from '../src/three/paperMotion.ts'
 import { noteLayerDepth } from '../src/three/noteLayers.ts'
 import { getStarterFrame } from '../src/three/starterFrame.ts'
@@ -48,6 +48,26 @@ test('paper lift and release settle monotonically and honor reduced motion', () 
   assert.equal(lift, 0)
   assert.equal(stepPaperLift(0, height, 1 / 60, true), height)
   assert.equal(stepPaperLift(height, 0, 1 / 60, true), 0)
+})
+
+test('notes select stable paper shapes with a flat adhesive edge and distinct bottom curls', () => {
+  const ids = SAMPLE_NOTES.map(({ id }) => id)
+  const variants = ids.map(paperShapeForId)
+  assert.deepEqual(ids.toReversed().map(paperShapeForId).toReversed(), variants)
+  assert.equal(new Set(variants).size, PAPER_SHAPE_COUNT)
+
+  const curlSizes = []
+  for (let index = 0; index < PAPER_SHAPE_COUNT; index++) {
+    const geometry = createPaperGeometry(index)
+    const position = geometry.attributes.position
+    const firstBottomVertex = (24 + 1) * 28
+    assert.ok(Math.abs(position.getZ(0)) < 1e-8)
+    assert.ok(Math.abs(position.getZ(24)) < 1e-8)
+    curlSizes.push(position.getZ(firstBottomVertex) - position.getZ(firstBottomVertex + 24))
+    geometry.dispose()
+  }
+  assert.ok(curlSizes[0] < 0 && curlSizes[1] > 0)
+  assert.equal(new Set(curlSizes).size, PAPER_SHAPE_COUNT)
 })
 
 test('long writing stays within the shared text layout for both renderers', () => {

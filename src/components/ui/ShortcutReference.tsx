@@ -11,7 +11,7 @@ const groups = [
     ['[ / ]', 'Previous / next board'],
     ['Ctrl/⌘ + K', 'Open Find'],
     ['F', 'Focus the selected note'],
-    ['V / H / O', 'Select / Pan / Orbit'],
+    ['V / H', 'Select / Pan'],
     ['+ or = / −', 'Zoom in / out'],
     ['0', 'Reset the camera'],
     ['Escape', 'Cancel a gesture, exit the tour, or deselect'],

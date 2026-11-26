@@ -1,44 +1,19 @@
 import { useWallStore } from '../../stores/wallStore'
-import { useEnvironmentMotionStore } from '../../stores/environmentMotionStore'
-import type { NoteDefaults, WallAppearance } from '../../types/wall'
-import { AMBIENCE_OPTIONS, LIGHT_INTENSITY_STEP, MAX_LIGHT_INTENSITY, MIN_LIGHT_INTENSITY, WALL_SHADES } from '../../utils/appearance'
-import { NoteColorPicker, ThemePicker } from './AppearancePickers'
+import type { NoteDefaults } from '../../types/wall'
+import { DEFAULT_NOTE_PREFERENCES } from '../../utils/appearance'
+import { NoteColorPicker } from './AppearancePickers'
 
 export function AppearanceSettings() {
-  const appearance = useWallStore((s) => s.appearance)
-  const defaults = useWallStore((s) => s.noteDefaults)
-  const lighting = useWallStore((s) => s.lighting)
-  const motionRoom = appearance.theme === 'office' ? 'office' : 'study'
-  const animateEnvironment = useEnvironmentMotionStore((s) => s[motionRoom])
+  const defaults = useWallStore((state) => state.noteDefaults)
   const actions = useWallStore.getState()
-  const hasDaylightRoom = appearance.theme === 'minimal' || appearance.theme === 'office'
 
   return <>
     <section className="settings-section" aria-labelledby="appearance-heading">
       <h3 id="appearance-heading">Themes and appearance</h3>
-      <ThemePicker value={appearance.theme} onChange={(theme) => actions.setAppearance({ theme })} />
-      <div className="appearance-fields">
-        <label>Wall shade<select value={appearance.shade} onChange={(event) => actions.setAppearance({ shade: event.target.value as WallAppearance['shade'] })}>
-          {Object.entries(WALL_SHADES).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
-        </select></label>
-        <label>Ambience<select value={appearance.ambience} onChange={(event) => actions.setAppearance({ ambience: event.target.value as WallAppearance['ambience'] })}>
-          {Object.entries(AMBIENCE_OPTIONS).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
-        </select></label>
-        <label>Lighting tone<select value={lighting} onChange={(event) => actions.setLighting(event.target.value === 'warm' ? 'warm' : 'daylight')}>
-          <option value="daylight">{hasDaylightRoom ? 'Neutral daylight' : 'Theme lighting'}</option>
-          <option value="warm">{hasDaylightRoom ? 'Warmer daylight' : 'Golden hour'}</option>
-        </select></label>
-        <div className="appearance-slider"><span><label htmlFor="wall-light-intensity">Light intensity</label><output>{appearance.intensity}%</output></span>
-          <input id="wall-light-intensity" type="range" min={MIN_LIGHT_INTENSITY} max={MAX_LIGHT_INTENSITY} step={LIGHT_INTENSITY_STEP}
-            value={appearance.intensity} aria-valuetext={`${appearance.intensity}%`}
-            onChange={(event) => actions.setAppearance({ intensity: Number(event.target.value) })} />
-        </div>
+      <div className="current-photo-template">
+        <img src="/environments/professors-study-wide.jpg" alt="" loading="lazy" />
+        <span>Professor’s Study</span>
       </div>
-      {hasDaylightRoom && <label className="toggle-label">
-        <strong>{motionRoom === 'office' ? 'Animate office environment' : 'Animate study room'}</strong>
-        <input type="checkbox" role="switch" checked={animateEnvironment}
-          onChange={(event) => useEnvironmentMotionStore.getState().setEnabled(motionRoom, event.target.checked)} />
-      </label>}
     </section>
     <section className="settings-section" aria-labelledby="note-defaults-heading">
       <h3 id="note-defaults-heading">New notes</h3>
@@ -55,6 +30,6 @@ export function AppearanceSettings() {
         </select></label>
       </div>
     </section>
-    <button type="button" className="text-button reset-appearance" onClick={actions.resetAppearance}>Reset appearance and note defaults</button>
+    <button type="button" className="text-button reset-appearance" onClick={() => actions.setNoteDefaults(DEFAULT_NOTE_PREFERENCES)}>Reset note defaults</button>
   </>
 }

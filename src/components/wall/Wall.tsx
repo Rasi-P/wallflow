@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo } from 'react'
 import type { RefObject } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { MathUtils, MeshBasicMaterial, PlaneGeometry } from 'three'
-import type { Group, Texture } from 'three'
+import { MeshBasicMaterial, PlaneGeometry } from 'three'
+import type { Group } from 'three'
 import { useWallStore } from '../../stores/wallStore'
 import { createContactShadow } from '../../three/textures'
 import { createPaperGeometry, PAPER_SHAPE_COUNT, paperShapeForId } from '../../three/paperGeometry'
@@ -13,47 +13,41 @@ import { createBakedNoteSurface, keepColorEmoji } from '../../three/noteSurface'
 import type { BindNoteSurface } from '../../three/noteSurface'
 import { NOTE_HEIGHT, NOTE_WIDTH } from '../../utils/constants'
 import { StickyNote } from '../sticky-note/StickyNote'
-import type { StickyNoteData } from '../../types/wall'
 import { hasWallFilters, matchesFilters } from '../../utils/noteSearch'
 import { SECTION_HEIGHT, SECTION_WIDTH } from '../../utils/wallSections'
 import { SectionMarker } from './SectionMarker'
-import { WallSurface } from './WallSurface'
+import { createPaperAttachments } from '../../three/paperAttachments'
+import { studyNoteFitsOpening, studySectionFitsOpening } from '../../three/mobileStudyFrame'
+import type { StudyOpening } from '../../three/mobileStudyFrame'
 
-function noteTransformsChanged(previous: StickyNoteData[] | null, notes: StickyNoteData[]) {
-  if (!previous || previous.length !== notes.length) return true
-  return notes.some((note, index) => {
-    const before = previous[index]
-    return before.id !== note.id || before.rotation !== note.rotation ||
-      before.position[0] !== note.position[0] || before.position[1] !== note.position[1] ||
-      before.size?.[0] !== note.size?.[0] || before.size?.[1] !== note.size?.[1]
-  })
-}
-
-export function Wall({ group, prototypeSurface, reducedMotion = false, studyPlaster }: {
-  group: RefObject<Group | null>; prototypeSurface?: BindNoteSurface | null; reducedMotion?: boolean; studyPlaster: Texture | null
+export function Wall({ group, prototypeSurface, phone, studyOpening }: {
+  group: RefObject<Group | null>; prototypeSurface?: BindNoteSurface | null; phone?: boolean; studyOpening: StudyOpening | null
 }) {
-  const gl = useThree((state) => state.gl)
   const invalidate = useThree((state) => state.invalidate)
   const allNotes = useWallStore((s) => s.notes)
   const notes = useMemo(() => allNotes.filter((note) => !note.archived), [allNotes])
   const sections = useWallStore((s) => s.sections)
   const filters = useWallStore((s) => s.filters)
   const today = useWallStore((s) => s.filters.due === 'any' ? '' : s.today)
-  const editingId = useWallStore((s) => hasWallFilters(s.filters) ? s.editingId : null)
-  const visibleNotes = useMemo(() => hasWallFilters(filters)
-    ? notes.filter((note) => note.id === editingId || matchesFilters(note, filters, today))
-    : notes, [notes, filters, editingId, today])
+  const editingId = useWallStore((s) => studyOpening || hasWallFilters(s.filters) ? s.editingId : null)
+  const selectedId = useWallStore((s) => studyOpening ? s.selectedId : null)
+  const visibleNotes = useMemo(() => {
+    const filtered = hasWallFilters(filters)
+      ? notes.filter((note) => note.id === editingId || matchesFilters(note, filters, today))
+      : notes
+    return studyOpening ? filtered.filter((note) => note.id === editingId || note.id === selectedId ||
+      studyNoteFitsOpening(note, studyOpening)) : filtered
+  }, [notes, filters, editingId, selectedId, studyOpening, today])
+  const visibleSections = useMemo(() => studyOpening
+    ? sections.filter((section) => studySectionFitsOpening(section, studyOpening)) : sections, [sections, studyOpening])
   const visibleIds = useMemo(() => new Set(visibleNotes.map(({ id }) => id)), [visibleNotes])
-  const previousNotes = useRef<{ all: StickyNoteData[]; visible: StickyNoteData[] } | null>(null)
-  const rotation = useWallStore((s) => s.wallRotation)
-  const targetTilt = MathUtils.degToRad(rotation[0])
-  const targetTurn = MathUtils.degToRad(rotation[1])
   const bakedSurface = useMemo(createBakedNoteSurface, [])
   const bindSurface = useMemo(() => keepColorEmoji(prototypeSurface, bakedSurface), [prototypeSurface, bakedSurface])
   const paperShapes = useMemo(() => Array.from({ length: PAPER_SHAPE_COUNT }, (_, index) => createPaperGeometry(index)), [])
   const sectionGeometry = useMemo(() => new PlaneGeometry(SECTION_WIDTH, SECTION_HEIGHT), [])
   const paperMotions = useMemo(() => new Set<PaperMotionFrame>(), [])
-  const contactGeometry = useMemo(() => new PlaneGeometry(NOTE_WIDTH + 0.5, NOTE_HEIGHT + 0.5), [])
+  const attachments = useMemo(createPaperAttachments, [])
+  const contactGeometry = useMemo(() => new PlaneGeometry(NOTE_WIDTH + 0.99, NOTE_HEIGHT + 1.07), [])
   const contactMaterial = useMemo(() => new MeshBasicMaterial({ map: createContactShadow(), opacity: CONTACT_SHADOW_OPACITY, transparent: true, depthWrite: false, toneMapped: false }), [])
   useEffect(() => () => {
     paperShapes.forEach((shape) => shape.dispose())
@@ -61,40 +55,23 @@ export function Wall({ group, prototypeSurface, reducedMotion = false, studyPlas
     contactGeometry.dispose()
     contactMaterial.map?.dispose()
     contactMaterial.dispose()
-  }, [paperShapes, sectionGeometry, contactGeometry, contactMaterial])
-  useEffect(() => {
-    const previous = previousNotes.current
-    if (noteTransformsChanged(previous?.all ?? null, notes) || noteTransformsChanged(previous?.visible ?? null, visibleNotes)) {
-      gl.shadowMap.needsUpdate = true
-      invalidate()
-    }
-    previousNotes.current = { all: notes, visible: visibleNotes }
-  }, [gl, invalidate, notes, visibleNotes])
-  useEffect(() => { invalidate() }, [invalidate, targetTilt, targetTurn, reducedMotion])
-  useEffect(() => {
-    const canvas = gl.domElement
-    const refreshShadows = () => { gl.shadowMap.needsUpdate = true; invalidate() }
-    canvas.addEventListener('webglcontextrestored', refreshShadows)
-    return () => canvas.removeEventListener('webglcontextrestored', refreshShadows)
-  }, [gl, invalidate])
+    attachments.dispose()
+  }, [paperShapes, sectionGeometry, contactGeometry, contactMaterial, attachments])
+  useEffect(() => { invalidate() }, [invalidate, notes, visibleNotes, visibleSections])
   useFrame((_, delta) => {
     for (const step of paperMotions) if (!step(delta)) paperMotions.delete(step)
     if (paperMotions.size) invalidate()
-    const angle = group.current?.rotation
-    if (!angle || (angle.x === targetTilt && angle.y === targetTurn) || useWallStore.getState().draggingId) return
-    angle.x = reducedMotion || Math.abs(angle.x - targetTilt) < 0.0001 ? targetTilt : MathUtils.damp(angle.x, targetTilt, 7, delta)
-    angle.y = reducedMotion || Math.abs(angle.y - targetTurn) < 0.0001 ? targetTurn : MathUtils.damp(angle.y, targetTurn, 7, delta)
-    gl.shadowMap.needsUpdate = true
-    // Let the camera recheck the final wall angle on the following frame.
-    invalidate()
   })
 
   return (
     <group ref={group} name="wall-and-attached-notes">
-      <WallSurface studyPlaster={studyPlaster} />
-      {sections.map((section) => <SectionMarker key={section.id} section={section} geometry={sectionGeometry} />)}
-      {notes.map((note, index) => <StickyNote key={note.id} note={note} visible={visibleIds.has(note.id)} depth={noteLayerDepth(index)} paperGeometry={paperShapes[paperShapeForId(note.id)]}
-        contactGeometry={contactGeometry} contactMaterial={contactMaterial} paperMotions={paperMotions} bindSurface={bindSurface} />)}
+      {visibleSections.map((section) => <SectionMarker key={section.id} section={section} geometry={sectionGeometry} />)}
+      {notes.map((note, index) => {
+        const shape = paperShapeForId(note.id)
+        return <StickyNote key={note.id} note={note} visible={visibleIds.has(note.id)} depth={noteLayerDepth(index)} paperGeometry={paperShapes[shape]}
+          contactGeometry={contactGeometry} contactMaterial={contactMaterial} paperMotions={paperMotions} bindSurface={bindSurface}
+          phone={phone} attachmentGeometry={attachments.geometry} attachmentMaterial={attachments.materials[shape - 1]} isTape={shape === 1} />
+      })}
     </group>
   )
 }

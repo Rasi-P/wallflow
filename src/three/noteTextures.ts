@@ -14,7 +14,7 @@ export class NoteTexturePool {
 
   update(previous: NoteTextureLease | null, artwork: NoteArtwork): NoteTextureLease {
     const key = JSON.stringify([artwork.title, artwork.body, artwork.color, artwork.doodle, artwork.task,
-      artwork.typography ?? 'handwritten', artwork.inlineSketches, artwork.sketchAspect])
+      artwork.typography ?? 'handwritten', artwork.inlineSketches, artwork.sketchAspect, artwork.phone])
     if (previous?.key === key) return previous
 
     const existing = this.entries.get(key)

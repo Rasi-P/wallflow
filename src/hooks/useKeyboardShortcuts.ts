@@ -44,7 +44,6 @@ export function handleWallShortcut(event: KeyboardEvent) {
       break
     case 'v': state.setMode('select'); break
     case 'h': state.setMode('pan'); break
-    case 'o': state.setMode('orbit'); break
     case '0': state.commandCamera('reset'); break
     case 'f':
       if (state.selectedId) { event.preventDefault(); state.focusNote(state.selectedId) }

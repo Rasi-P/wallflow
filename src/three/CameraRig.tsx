@@ -168,7 +168,7 @@ export function CameraRig({ wall, reducedMotion = false, room }: { wall: RefObje
     const position = camera.position.clone()
     let anchor: Point2 | undefined
     let distance: number | undefined
-    if (command.kind === 'reset') {
+    if (command.kind === 'reset' || command.kind === 'overview') {
       const home = getHome()
       updateZoomRange(home.distance, home.limit)
       target.copy(home.target)
@@ -187,7 +187,7 @@ export function CameraRig({ wall, reducedMotion = false, room }: { wall: RefObje
       positionWallFocus(wall.current, anchor, distance, target, position)
     }
     if (wall.current) constrainWallView(wall.current, target, position, aspect)
-    transition.current = { position, target, kind: command.kind, anchor, distance }
+    transition.current = { position, target, kind: command.kind === 'overview' ? 'reset' : command.kind, anchor, distance }
     invalidate()
   }, [command, camera, invalidate, aspect, wall, getHome, height, layout, updateZoomRange, width])
 

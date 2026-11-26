@@ -11,7 +11,7 @@ import type { WallFilters } from '../utils/noteSearch.ts'
 import { isReminderTime, readReminder } from '../utils/reminders.ts'
 import type { ReminderPermission } from '../utils/reminders.ts'
 import { DEFAULT_APPEARANCE, DEFAULT_NOTE_PREFERENCES, isNoteTypography, NOTE_SIZE_SCALES, readNoteDefaults, readWallAppearance } from '../utils/appearance.ts'
-import { removeUnchangedSamples, TUTORIAL_STEPS } from '../utils/onboarding.ts'
+import { removeUnchangedSamples, replaceUntouchedSamplesWithProfessorStudy, TUTORIAL_STEPS } from '../utils/onboarding.ts'
 import type { FirstWallOptions, TutorialProgress } from '../utils/onboarding.ts'
 import type { Board, BoardId } from '../types/workspace.ts'
 import { limitNoteText } from '../utils/noteText.ts'
@@ -22,7 +22,7 @@ type NotePatch = Partial<Pick<StickyNoteData, 'title' | 'body' | 'position' | 'c
 type EditSession = { kind: 'new'; past: WallDocument[]; future: WallDocument[] } | { kind: 'existing'; original: StickyNoteData }
 type TaskPatch = Omit<NoteTaskFields, 'checklist'>
 type Panel = 'searchOpen' | 'settingsOpen' | 'helpOpen' | 'tasksOpen'
-type CameraKind = 'reset' | 'zoom' | 'focus' | 'section'
+type CameraKind = 'reset' | 'zoom' | 'focus' | 'section' | 'overview'
 
 export interface WallStore extends WallDocument {
   wallName: string
@@ -605,15 +605,16 @@ export function createBoardStore({ board, blank = false, visibleSlots = () => []
     setNoteDefaults: (patch) => set((state) => ({ noteDefaults: readNoteDefaults({ ...state.noteDefaults, ...patch }) })),
     resetAppearance: () => set({ appearance: { ...DEFAULT_APPEARANCE }, noteDefaults: { ...DEFAULT_NOTE_PREFERENCES }, lighting: 'daylight' }),
     setShowHints: (showHints) => set({ showHints }),
-    completeOnboarding: ({ starter, theme, color, offerTutorial = true }) => {
+    completeOnboarding: ({ starter, theme, color, sampleSet, offerTutorial = true }) => {
       const state = get()
       if (state.onboardingComplete || state.draggingId) return
       state.finishEditing()
       set((current) => {
-        const notes = starter === 'blank' ? removeUnchangedSamples(current.notes) : current.notes
-        const removedSamples = notes.length < current.notes.length
+        const notes = starter === 'blank' ? removeUnchangedSamples(current.notes)
+          : sampleSet === 'professors-study' ? replaceUntouchedSamplesWithProfessorStudy(current.notes) : current.notes
+        const changedSamples = notes !== current.notes && (starter !== 'blank' || notes.length < current.notes.length)
         return {
-          ...(removedSamples ? { ...checkpoint(current), notes, selectedId: matchingSelection(current, notes) } : {}),
+          ...(changedSamples ? { ...checkpoint(current), notes, selectedId: matchingSelection(current, notes) } : {}),
           appearance: theme === undefined ? current.appearance : readWallAppearance({ ...current.appearance, theme }),
           noteDefaults: color === undefined ? current.noteDefaults : readNoteDefaults({ ...current.noteDefaults, color }),
           onboardingComplete: true,

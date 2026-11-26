@@ -545,3 +545,104 @@ kbd { border: 1px solid #dde4d2; padding: 0 4px; border-radius: 3px; margin-left
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
   button:not(:disabled):active { transform: none; }
 }
+
+.photo-workspace { background: #e5d2b8; }
+.photo-workspace-plate, .photo-workspace-plate img { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.photo-workspace-plate img { display: block; object-fit: cover; object-position: 50% 50%; }
+.photo-workspace .wall-loading { background: transparent; }
+.wallflow-app .app-footer { color: #38271d; }
+@media (max-aspect-ratio: 1/1) {
+  .photo-workspace-plate img { top: -4.4%; height: 104.4%; object-position: center bottom; }
+}
+.photo-view-tools { display: flex; align-items: center; gap: 9px; }
+.photo-view-tools .mode-switcher { padding-left: 8px; border-left: 1px solid var(--line); }
+.photo-view-tools .mode-switcher .icon-button { width: 37px; height: 37px; }
+.current-photo-template { display: grid; gap: 8px; padding: 7px; border: 1px solid var(--line); border-radius: 11px; font-size: 13px; font-weight: 650; }
+.current-photo-template img { width: 100%; height: 84px; object-fit: cover; object-position: center 80%; border-radius: 6px; }
+.current-photo-template span { padding: 0 4px 2px; }
+@media (max-width: 700px) {
+  .floating-toolbar:has(.photo-view-tools) {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    width: 374px;
+    gap: 4px;
+  }
+  .floating-toolbar:has(.photo-view-tools) > .toolbar-divider { display: none; }
+  .floating-toolbar:has(.photo-view-tools) .color-swatches { justify-content: space-around; padding-inline: 0; gap: 0; }
+  .floating-toolbar:has(.photo-view-tools) .color-swatch { width: min(20%, 30px); }
+  .photo-view-tools { grid-column: 1 / -1; border-top: 1px solid var(--line); padding-top: 3px; margin-top: 2px; justify-content: center; gap: 8px; }
+  .photo-view-tools .zoom-tools { flex-basis: auto; padding: 0; border: 0; margin: 0; }
+  .photo-view-tools .zoom-tools .icon-button:last-child { margin-left: 1px; }
+  .photo-view-tools .mode-switcher .icon-button { width: 38px; height: 38px; }
+  .toolbar-area:has(.photo-view-tools) { bottom: calc(39px + var(--wall-safe-bottom)); }
+}
+@media (min-width: 540px) and (max-width: 700px) and (max-height: 530px) {
+  .floating-toolbar:has(.photo-view-tools) { display: flex; width: max-content; }
+  .floating-toolbar:has(.photo-view-tools) .color-swatch { width: 26px; }
+  .photo-view-tools { border: 0; padding: 0; margin: 0; gap: 4px; }
+  .photo-view-tools .mode-switcher { padding-left: 4px; }
+  .photo-view-tools .zoom-tools .icon-button { width: 32px; }
+}
+@media (max-width: 350px) {
+  .floating-toolbar:has(.photo-view-tools) .add-note-button { width: 39px; justify-content: center; padding: 0; }
+  .floating-toolbar:has(.photo-view-tools) .add-note-button span { display: none; }
+}
+
+@media (max-width: 560px) and (orientation: portrait) {
+  .wallflow-app {
+    --study-header-top: clamp(46px, 9dvh, 86px);
+    --study-toolbar-bottom: calc(max(36px, 7.1dvh) + var(--wall-safe-bottom));
+  }
+  .photo-workspace-plate img { inset: 0; height: 100%; object-fit: fill; }
+  .app-header {
+    height: calc(var(--study-header-top) + 88px + var(--wall-safe-top));
+    padding-top: calc(var(--study-header-top) + var(--wall-safe-top));
+    padding-inline: max(18px, var(--wall-safe-left)) max(18px, var(--wall-safe-right));
+  }
+  .app-header .brand { padding-block: 3px; }
+  .app-header .board-navigation {
+    top: calc(var(--study-header-top) + 42px + var(--wall-safe-top));
+    left: max(18px, var(--wall-safe-left));
+    box-shadow: 0 2px 8px #50321912;
+  }
+  .app-header .board-navigation .icon-button { height: 37px; }
+  .wall-task-panel { top: calc(var(--study-header-top) + 90px + var(--wall-safe-top)); }
+  .onboarding-card { --card-top: calc(var(--study-header-top) + 90px + var(--wall-safe-top)); }
+  .toolbar-area:has(.phone-study-toolbar) {
+    bottom: var(--study-toolbar-bottom);
+    max-width: calc(100% - 16px - var(--wall-safe-left) - var(--wall-safe-right));
+  }
+  .floating-toolbar.phone-study-toolbar {
+    --study-tool: clamp(28px, 8.2vw, 36px);
+    display: flex;
+    width: max-content;
+    max-width: 100%;
+    flex-wrap: nowrap;
+    gap: 1px;
+    padding: 4px 5px;
+    border-radius: 16px;
+  }
+  .phone-study-toolbar .history-tools { margin-left: 1px; }
+  .phone-study-toolbar .add-note-button { height: 37px; padding-inline: 9px; gap: 4px; font-size: 12px; }
+  .floating-toolbar.phone-study-toolbar .icon-button { width: var(--study-tool); height: 39px; }
+  .phone-study-toolbar .tool-group { flex-basis: auto; gap: 0; }
+  .phone-study-toolbar .zoom-tools { padding: 0; border: 0; margin: 0; }
+  .phone-study-toolbar .zoom-tools .icon-button:last-child { margin-left: 0; }
+  .phone-study-toolbar > .toolbar-divider { display: none; }
+  .phone-study-toolbar > .icon-button:last-child { margin-left: 1px; }
+  .floating-toolbar.phone-study-toolbar .phone-study-home { width: 47px; font-size: 11px; gap: 2px; }
+  .toolbar-area:has(.phone-study-toolbar) .selected-note-tools { max-width: 100%; }
+  .toolbar-area:has(.phone-study-toolbar) .selection-actions { flex-wrap: wrap; justify-content: center; gap: 2px; }
+  .toolbar-area:has(.phone-study-toolbar) .selection-actions .icon-button { width: clamp(25px, 7.7vw, 34px); height: 36px; }
+  .phone-paper-colors { position: relative; }
+  .phone-color-trigger .swatch-dot { width: 18px; height: 18px; outline: 1px solid #7d6644; outline-offset: 2px; }
+  .phone-colors-popover {
+    position: absolute; z-index: 1; left: 50%; bottom: calc(100% + 10px); transform: translateX(-50%);
+    border: 1px solid var(--line); border-radius: 12px; padding: 4px; background: var(--panel); box-shadow: var(--panel-shadow);
+  }
+  .phone-colors-popover .color-swatch { width: 38px; height: 40px; }
+}
+@media (max-width: 355px) and (orientation: portrait) {
+  .floating-toolbar.phone-study-toolbar { --study-tool: 26px; }
+  .phone-study-toolbar .add-note-button { padding-inline: 7px; }
+}

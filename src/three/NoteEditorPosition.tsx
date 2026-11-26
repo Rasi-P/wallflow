@@ -28,7 +28,7 @@ export function NoteEditorPosition({ wall, element }: { wall: RefObject<Group | 
     }
   }, [element, invalidate])
 
-  useFrame(({ size }) => {
+  useFrame(({ size, gl }) => {
     const id = useWallStore.getState().editingId
     if (!id || !element) { active.id = null; active.object = null; return }
     if (id !== active.id || !active.object) {
@@ -39,19 +39,25 @@ export function NoteEditorPosition({ wall, element }: { wall: RefObject<Group | 
     if (!note) return
     camera.updateMatrixWorld()
     note.getWorldPosition(point).project(camera)
-    const screenX = (point.x + 1) * size.width / 2
-    const screenY = (1 - point.y) * size.height / 2
+    const paper = gl.domElement.getBoundingClientRect()
+    const app = element.offsetParent?.getBoundingClientRect()
+    const originX = app?.left ?? 0, originY = app?.top ?? 0
+    const width = app?.width ?? size.width, height = app?.height ?? size.height
+    const screenX = paper.left - originX + (point.x + 1) * size.width / 2
+    const screenY = paper.top - originY + (1 - point.y) * size.height / 2
     const viewport = window.visualViewport
-    const top = (viewport?.offsetTop ?? 0) + 12
-    const bottom = Math.min(size.height, (viewport?.offsetTop ?? 0) + (viewport?.height ?? size.height)) - 12
+    const visibleX = Math.max(0, (viewport?.offsetLeft ?? 0) - originX)
+    const visibleY = Math.max(0, (viewport?.offsetTop ?? 0) - originY)
+    const top = visibleY + 12
+    const bottom = Math.min(height, visibleY + (viewport?.height ?? height)) - 12
     const maxHeight = `${Math.max(60, Math.round(bottom - top))}px`
     if (element.style.maxHeight !== maxHeight) element.style.maxHeight = maxHeight
-    const maxWidth = `${Math.max(120, Math.floor((viewport?.width ?? size.width) - 24))}px`
+    const maxWidth = `${Math.max(120, Math.floor((viewport?.width ?? width) - 24))}px`
     if (element.style.maxWidth !== maxWidth) element.style.maxWidth = maxWidth
     const halfWidth = element.offsetWidth / 2
     const halfHeight = element.offsetHeight / 2
-    const leftEdge = (viewport?.offsetLeft ?? 0) + halfWidth + 12
-    const rightEdge = Math.min(size.width, (viewport?.offsetLeft ?? 0) + (viewport?.width ?? size.width)) - halfWidth - 12
+    const leftEdge = visibleX + halfWidth + 12
+    const rightEdge = Math.min(width, visibleX + (viewport?.width ?? width)) - halfWidth - 12
     const x = MathUtils.clamp(screenX, leftEdge, Math.max(leftEdge, rightEdge))
     const y = MathUtils.clamp(screenY, top + halfHeight, Math.max(top + halfHeight, bottom - halfHeight))
     const left = `${Math.round(x)}px`, center = `${Math.round(y)}px`

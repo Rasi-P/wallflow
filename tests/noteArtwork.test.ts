@@ -137,9 +137,13 @@ test('the wall draws inline and corner SVG paths with room for resized checklist
   }, '#473826')
   assert.ok(strokes.includes(SKETCHES['open-book'].outline) && strokes.includes(SKETCHES.flask.outline))
   assert.ok(text.every((line) => !line.value.includes('[[sketch:')))
-  const lastItem = text.find(({ y }) => y === 800)!
+  const rows = text.filter(({ x }) => x === 160)
   const [cornerX, cornerY] = placements.at(-2)!
-  assert.ok(lastItem.x + lastItem.width! < cornerX && cornerY < lastItem.y)
+  assert.equal(rows.length, 3)
+  assert.ok(rows[0].y < rows[1].y && rows[1].y < rows[2].y)
+  for (const row of rows) {
+    assert.ok(row.y + 14 < cornerY || row.x + row.width! < cornerX)
+  }
   const [scaleX, scaleY] = scales.at(-1)!
   assert.ok(Math.abs(scaleX * 2.4 - scaleY) < 1e-10)
 })

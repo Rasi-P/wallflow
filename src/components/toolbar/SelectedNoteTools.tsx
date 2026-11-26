@@ -5,11 +5,13 @@ import type { NoteColor } from '../../types/wall'
 import { MAX_NOTES, NOTE_COLORS, NOTE_HEIGHT, NOTE_WIDTH } from '../../utils/constants'
 import { getNoteSize } from '../../utils/noteDimensions'
 import { IconButton } from '../ui/IconButton'
+import { useStudyPhone } from '../../hooks/useStudyPhone'
 import { useDismissiblePopover } from '../../hooks/useDismissiblePopover'
 
 export function SelectedNoteTools({ id, count }: { id: string; count: number }) {
   const note = useWallStore((state) => state.notes.find((entry) => entry.id === id))
   const sections = useWallStore((state) => state.sections)
+  const phone = useStudyPhone()
   const [panel, setPanel] = useState<'color' | 'size' | 'tasks' | null>(null)
   const popover = useRef<HTMLDivElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
@@ -39,7 +41,7 @@ export function SelectedNoteTools({ id, count }: { id: string; count: number }) 
       <button type="button" onClick={() => actions.updateNote(id, { size: [NOTE_WIDTH, NOTE_HEIGHT] })}>Reset</button>
     </div>}
     {panel === 'tasks' && <div ref={popover} id="note-action-popover" className="note-action-popover note-task-menu" role="group" aria-label="Note options">
-      <button type="button" className="text-button" onClick={() => { actions.focusNote(id); setPanel(null) }}><LocateFixed size={16} /> Focus note</button>
+      {!phone && <button type="button" className="text-button" onClick={() => { actions.focusNote(id); setPanel(null) }}><LocateFixed size={16} /> Focus note</button>}
       <button type="button" className="text-button" onClick={() => actions.editNote(id, true)}><ListChecks size={16} /> Edit task details</button>
       <button type="button" className="text-button" onClick={() => actions.updateTask(id, { completed: !note.completed })}><Check size={16} /> {note.completed ? 'Reopen task' : 'Mark complete'}</button>
       <button type="button" className="text-button" onClick={() => actions.archiveNote(id)}><Archive size={16} /> Archive note</button>
@@ -51,6 +53,7 @@ export function SelectedNoteTools({ id, count }: { id: string; count: number }) 
       </label>}
     </div>}
     <div className="selection-actions" role="group" aria-label="Selected note actions">
+      {phone && <IconButton label="Focus note" onClick={() => actions.focusNote(id)}><LocateFixed size={16} /></IconButton>}
       <IconButton data-tour-anchor="edit" label="Edit note" onClick={() => actions.editNote(id)}><PencilLine size={16} /></IconButton>
       <IconButton label="Change note color" active={panel === 'color'} aria-expanded={panel === 'color'}
         aria-controls={panel === 'color' ? 'note-action-popover' : undefined} onClick={(event) => toggle('color', event.currentTarget)}><Palette size={17} /></IconButton>

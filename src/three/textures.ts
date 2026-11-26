@@ -145,7 +145,7 @@ export const NOTE_TEXTURE_SIZE = 1024
 export const DEFAULT_NOTE_TITLE = 'A fresh little thought.'
 export const DEFAULT_NOTE_BODY = 'Double-click to make it yours.'
 export type NoteInk = Pick<StickyNoteData, 'title' | 'body' | 'doodle' | 'typography' | 'inlineSketches'> & {
-  task?: TaskInk; sketchAspect?: number
+  task?: TaskInk; sketchAspect?: number; phone?: true
 }
 export type NoteArtwork = NoteInk & Pick<StickyNoteData, 'color'>
 let paperFinish: HTMLCanvasElement | undefined
@@ -173,6 +173,14 @@ function paintNote(ctx: CanvasRenderingContext2D, note: NoteArtwork) {
   ctx.fillStyle = paper
   ctx.fillRect(0, 0, NOTE_TEXTURE_SIZE, NOTE_TEXTURE_SIZE)
   ctx.drawImage(getPaperFinish(), 0, 0)
+  if (note.phone) {
+    const light = ctx.createLinearGradient(0, 0, NOTE_TEXTURE_SIZE, NOTE_TEXTURE_SIZE)
+    light.addColorStop(0, '#fff9e624')
+    light.addColorStop(0.6, '#fff9e600')
+    light.addColorStop(1, '#764c1611')
+    ctx.fillStyle = light
+    ctx.fillRect(0, 0, NOTE_TEXTURE_SIZE, NOTE_TEXTURE_SIZE)
+  }
   paintNoteInk(ctx, note, ink)
 }
 
@@ -182,35 +190,41 @@ export function paintNoteInk(ctx: CanvasRenderingContext2D, note: NoteInk, ink: 
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
   const titleFont = NOTE_TITLE_FONTS[note.typography ?? 'handwritten']
+  const bodyFont = note.typography === 'sans' ? NOTE_BODY_FONT : titleFont
   const title = note.title || DEFAULT_NOTE_TITLE
   const width = 800
   const corner = isSketchId(note.doodle) ? note.doodle : undefined
   const aspect = note.sketchAspect ?? 1
-  ctx.font = `700 82px ${titleFont}`
-  let titleWriter = lineWriter(ctx, 82, note.inlineSketches, aspect)
+  const titleSize = note.phone ? 111 : 95
+  ctx.font = `700 ${titleSize}px ${titleFont}`
+  let titleWriter = lineWriter(ctx, titleSize, note.inlineSketches, aspect)
   let titleLines = wrap(titleWriter, title, width)
   if (titleLines.length > 2) {
-    ctx.font = `700 70px ${titleFont}`
-    titleWriter = lineWriter(ctx, 70, note.inlineSketches, aspect)
+    const reduced = note.phone ? 89 : 77
+    ctx.font = `700 ${reduced}px ${titleFont}`
+    titleWriter = lineWriter(ctx, reduced, note.inlineSketches, aspect)
     titleLines = wrap(titleWriter, title, width)
   }
-  let y = 182
+  let y = note.phone ? 171 : 175
   for (const [index, line] of titleLines.slice(0, 3).entries()) {
     titleWriter.fill(index === 2 && titleLines.length > 3 ? ellipsize(titleWriter, line, width) : line, 108, y, width)
-    y += 98
+    y += note.phone ? 111 : 105
   }
-  y += 38
+  y += 25
   const body = note.body || (note.task ? '' : DEFAULT_NOTE_BODY)
-  ctx.font = `450 56px ${NOTE_BODY_FONT}`
-  let bodyWriter = lineWriter(ctx, 56, note.inlineSketches, aspect)
+  const bodySize = note.phone ? 84 : 62
+  const bodyWeight = note.phone ? 600 : 500
+  ctx.font = `${bodyWeight} ${bodySize}px ${bodyFont}`
+  let bodyWriter = lineWriter(ctx, bodySize, note.inlineSketches, aspect)
   let bodyLines = wrap(bodyWriter, body, width)
-  let lineHeight = 79
+  let lineHeight = note.phone ? 94 : 79
   const bodyLimit = note.task?.rows.length ? 590 : corner ? 736 : 846
   if (y + (bodyLines.length - 1) * lineHeight > bodyLimit) {
-    ctx.font = `450 49px ${NOTE_BODY_FONT}`
-    bodyWriter = lineWriter(ctx, 49, note.inlineSketches, aspect)
+    const reduced = note.phone ? 67 : 52
+    ctx.font = `${bodyWeight} ${reduced}px ${bodyFont}`
+    bodyWriter = lineWriter(ctx, reduced, note.inlineSketches, aspect)
     bodyLines = wrap(bodyWriter, body, width)
-    lineHeight = 67
+    lineHeight = note.phone ? 82 : 67
   }
   const linesThatFit = Math.max(0, 1 + Math.floor((bodyLimit - y) / lineHeight))
   for (const [index, line] of (body ? bodyLines.slice(0, linesThatFit) : []).entries()) {
@@ -219,7 +233,8 @@ export function paintNoteInk(ctx: CanvasRenderingContext2D, note: NoteInk, ink: 
   }
   if (note.task) {
     if (note.doodle && !corner && !note.task.rows.length && y < 690) drawDoodle(ctx, note.doodle, 750, 730)
-    paintTaskInk(ctx, note.task, NOTE_BODY_FONT, width, Boolean(corner))
+    const firstRow = Math.min(note.phone ? 630 : 657, Math.max(335, y + 20))
+    paintTaskInk(ctx, note.task, bodyFont, width, Boolean(corner), firstRow, note.phone)
   } else if (note.doodle && !corner && y < 770) {
     drawDoodle(ctx, note.doodle, 750, 805)
   }
@@ -229,12 +244,14 @@ export function paintNoteInk(ctx: CanvasRenderingContext2D, note: NoteInk, ink: 
   }
 }
 
-function paintTaskInk(ctx: CanvasRenderingContext2D, task: TaskInk, font: string, width: number, corner: boolean) {
-  ctx.font = `500 47px ${font}`
+function paintTaskInk(ctx: CanvasRenderingContext2D, task: TaskInk, font: string, width: number, corner: boolean, firstRow: number, phone?: true) {
+  const fontSize = phone ? 86 : 59
+  const boxSize = phone ? 39 : 32
+  ctx.font = `${phone ? 600 : 500} ${fontSize}px ${font}`
   ctx.lineWidth = 4
   for (const [index, row] of task.rows.entries()) {
-    const y = 676 + index * 62
-    ctx.strokeRect(110, y - 30, 29, 29)
+    const y = firstRow + index * (phone ? 86 : 68)
+    ctx.strokeRect(110, y - boxSize - 2, boxSize, boxSize)
     if (row.done) {
       ctx.beginPath()
       ctx.moveTo(116, y - 17)
@@ -243,8 +260,8 @@ function paintTaskInk(ctx: CanvasRenderingContext2D, task: TaskInk, font: string
       ctx.stroke()
     }
     const text = row.text || 'Untitled item'
-    const limit = (corner && index === 2 ? 632 : width) - 52
-    ctx.fillText(ctx.measureText(text).width > limit ? ellipsize(lineWriter(ctx, 47), text, limit) : text, 160, y, limit)
+    const limit = (corner && y > 751 ? 632 : width) - 52
+    ctx.fillText(ctx.measureText(text).width > limit ? ellipsize(lineWriter(ctx, fontSize), text, limit) : text, 160, y, limit)
   }
   const summaryY = task.due ? 886 : 927
   if (task.summary) {
@@ -304,16 +321,19 @@ function drawDoodle(ctx: CanvasRenderingContext2D, doodle: NonNullable<NoteInk['
 
 export function createContactShadow() {
   const { element, context: ctx } = canvas(256)
-  ctx.filter = 'blur(18px)'
-  ctx.fillStyle = 'rgba(48,50,47,0.13)'
-  ctx.fillRect(38, 48, 191, 172)
-  ctx.filter = 'blur(8px)'
-  ctx.fillStyle = 'rgba(48,50,47,0.115)'
-  ctx.fillRect(33, 29, 187, 177)
-  ctx.filter = 'blur(4px)'
-  ctx.fillStyle = 'rgba(48,50,47,0.16)'
-  ctx.fillRect(35, 25, 182, 10)
-  return new CanvasTexture(element)
+  const shade = (radius: number, fill: string, x: number, y: number, width: number, height: number) => {
+    ctx.filter = `blur(${radius}px)`
+    ctx.fillStyle = fill
+    ctx.beginPath()
+    ctx.roundRect(x, y, width, height, 6)
+    ctx.fill()
+  }
+  shade(14, 'rgba(74,41,19,0.30)', 43, 50, 187, 179)
+  shade(7, 'rgba(61,39,24,0.20)', 40, 41, 186, 182)
+  shade(3, 'rgba(45,27,18,0.18)', 38, 41, 183, 16)
+  const texture = new CanvasTexture(element)
+  texture.colorSpace = SRGBColorSpace
+  return texture
 }
 
 export function createWindowLight() {

@@ -37,12 +37,16 @@ interface NoteProps {
   contactGeometry: PlaneGeometry
   contactMaterial: MeshBasicMaterial
   paperMotions: Set<PaperMotionFrame>
+  attachmentGeometry: PlaneGeometry
+  attachmentMaterial?: MeshBasicMaterial
+  isTape: boolean
+  phone?: boolean
   bindSurface: BindNoteSurface
 }
 
 const ignoreRaycast = () => null
 
-export const StickyNote = memo(function StickyNote({ note, visible, depth, paperGeometry, contactGeometry, contactMaterial, paperMotions, bindSurface }: NoteProps) {
+export const StickyNote = memo(function StickyNote({ note, visible, depth, paperGeometry, contactGeometry, contactMaterial, paperMotions, bindSurface, attachmentGeometry, attachmentMaterial, isTape, phone }: NoteProps) {
   const group = useRef<Group>(null)
   const footprint = useRef<Group>(null)
   const paper = useRef<Mesh>(null)
@@ -67,9 +71,9 @@ export const StickyNote = memo(function StickyNote({ note, visible, depth, paper
     return () => { surface.current = null; binding.dispose() }
   }, [bindSurface])
   useLayoutEffect(() => {
-    surface.current?.update({ title, body, color, doodle, inlineSketches, sketchAspect, task, typography })
+    surface.current?.update({ title, body, color, doodle, inlineSketches, sketchAspect, task, typography, phone: phone || undefined })
     invalidate()
-  }, [bindSurface, title, body, color, doodle, inlineSketches, sketchAspect, task, typography, invalidate])
+  }, [bindSurface, title, body, color, doodle, inlineSketches, sketchAspect, task, typography, phone, invalidate])
 
   const frame = useCallback<PaperMotionFrame>((delta) => {
     const sheet = paper.current
@@ -91,7 +95,7 @@ export const StickyNote = memo(function StickyNote({ note, visible, depth, paper
         }
       }
       const amount = Math.min(1, lift / 0.075)
-      shadow.position.set(0.035 + amount * 0.043, -0.055 - amount * 0.07, NOTE_CONTACT_DEPTH)
+      shadow.position.set(0.06 + amount * 0.06, -0.09 - amount * 0.08, NOTE_CONTACT_DEPTH)
       shadow.scale.set(1 + amount * 0.04, 1 + amount * 0.06, 1)
       if (lift > 0) {
         state.material ??= contactMaterial.clone()
@@ -102,10 +106,9 @@ export const StickyNote = memo(function StickyNote({ note, visible, depth, paper
         state.material.dispose()
         state.material = null
       }
-      gl.shadowMap.needsUpdate = true
     }
     return lift !== state.target
-  }, [contactMaterial, depth, gl, size, note.rotation])
+  }, [contactMaterial, depth, size, note.rotation])
 
   useLayoutEffect(() => () => {
     paperMotions.delete(frame)
@@ -113,7 +116,7 @@ export const StickyNote = memo(function StickyNote({ note, visible, depth, paper
     if (state.material) {
       if (contact.current) {
         contact.current.material = contactMaterial
-        contact.current.position.set(0.035, -0.055, NOTE_CONTACT_DEPTH)
+        contact.current.position.set(0.06, -0.09, NOTE_CONTACT_DEPTH)
         contact.current.scale.setScalar(1)
       }
       state.material.dispose()
@@ -187,7 +190,6 @@ export const StickyNote = memo(function StickyNote({ note, visible, depth, paper
     const [x, y] = clampPosition([local.x - state.offset.x, local.y - state.offset.y], size, note.rotation)
     if (!lifted && object.position.x === x && object.position.y === y) return
     object.position.set(x, y, 0)
-    gl.shadowMap.needsUpdate = true
     invalidate()
   }
 
@@ -211,7 +213,6 @@ export const StickyNote = memo(function StickyNote({ note, visible, depth, paper
       if (commit && sameBoard) current.updateNote(note.id, { position: [object.position.x, object.position.y] })
       else object.position.set(note.position[0], note.position[1], 0)
       animateLift(0)
-      gl.shadowMap.needsUpdate = true
     }
     if (sameBoard && current.draggingId === note.id) current.setDragging(null)
     gl.domElement.style.cursor = ''
@@ -220,14 +221,16 @@ export const StickyNote = memo(function StickyNote({ note, visible, depth, paper
   return (
     <group ref={group} visible={visible} position={[...note.position, 0]} rotation={[0, 0, note.rotation]} name={`note-${note.id}`}>
       <group ref={footprint} scale={[size[0] / NOTE_WIDTH, size[1] / NOTE_HEIGHT, 1]}>
-      <mesh ref={contact} position={[0.035, -0.055, NOTE_CONTACT_DEPTH]} geometry={contactGeometry} material={contactMaterial} raycast={() => null} />
-      <mesh ref={paper} position={[0, 0, depth]} geometry={paperGeometry} castShadow receiveShadow raycast={visible ? Mesh.prototype.raycast : ignoreRaycast}
+      <mesh ref={contact} position={[0.06, -0.09, NOTE_CONTACT_DEPTH]} geometry={contactGeometry} material={contactMaterial} raycast={() => null} />
+      <mesh ref={paper} position={[0, 0, depth]} geometry={paperGeometry} raycast={visible ? Mesh.prototype.raycast : ignoreRaycast}
         onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp}
         onClick={(e) => { if (useWallStore.getState().mode === 'select') e.stopPropagation() }}
         onDoubleClick={(e) => { if (useWallStore.getState().mode === 'select') { e.stopPropagation(); useWallStore.getState().editNote(note.id) } }}
         onPointerOver={(e) => { if (useWallStore.getState().mode === 'select') { e.stopPropagation(); gl.domElement.style.cursor = 'grab' } }}
         onPointerOut={() => { if (!drag.current) gl.domElement.style.cursor = '' }}>
         <meshStandardMaterial ref={material} roughness={0.97} side={DoubleSide} />
+        {attachmentMaterial && <mesh position={[isTape ? -0.16 : 0.04, NOTE_HEIGHT / 2 - 0.04, 0.00065]}
+          rotation={[0, 0, isTape ? 0.035 : 0]} geometry={attachmentGeometry} material={attachmentMaterial} raycast={ignoreRaycast} />}
       </mesh>
       {selected && !editing && <mesh position={[0, 0, depth - 0.015]} raycast={() => null}>
         <planeGeometry args={[NOTE_WIDTH + 0.078, NOTE_HEIGHT + 0.078]} />

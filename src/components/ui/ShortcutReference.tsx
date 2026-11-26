@@ -8,6 +8,7 @@ const groups = [
     ['Ctrl/⌘ + Shift + Z or Ctrl/⌘ + Y', 'Redo'],
   ] },
   { title: 'Wall and camera', shortcuts: [
+    ['[ / ]', 'Previous / next board'],
     ['Ctrl/⌘ + K', 'Open Find'],
     ['F', 'Focus the selected note'],
     ['V / H / O', 'Select / Pan / Orbit'],

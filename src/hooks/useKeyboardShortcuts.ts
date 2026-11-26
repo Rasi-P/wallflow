@@ -1,11 +1,13 @@
 import { useEffect } from 'react'
-import { useWallStore } from '../stores/wallStore.ts'
+import { useWallStore, workspace } from '../stores/wallStore.ts'
 
 export function handleWallShortcut(event: KeyboardEvent) {
   const state = useWallStore.getState()
   const target = event.target as HTMLElement | null
   const typing = target && (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable)
   if (event.defaultPrevented || event.isComposing || typing || state.draggingId) return
+  if (target?.closest?.('.board-management-dialog') ||
+    (typeof document !== 'undefined' && document.querySelector('dialog.board-management-dialog[open]'))) return
   const key = event.key.toLowerCase()
   const modifier = event.metaKey || event.ctrlKey
   if (state.editingId) {
@@ -32,6 +34,11 @@ export function handleWallShortcut(event: KeyboardEvent) {
     return
   }
   switch (key) {
+    case '[': case ']':
+      if (event.shiftKey || event.repeat || target?.closest?.('dialog, [role="dialog"], [role="alertdialog"]') ||
+        (typeof document !== 'undefined' && document.querySelector('dialog[open]'))) return
+      if (workspace.stepBoard(key === '[' ? -1 : 1)) event.preventDefault()
+      break
     case 'n':
       if (!event.repeat) { event.preventDefault(); state.addNote() }
       break

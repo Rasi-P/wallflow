@@ -4,6 +4,7 @@ import { useWallStore } from '../../stores/wallStore'
 import { storageHealth } from '../../utils/storage'
 import { IconButton } from '../ui/IconButton'
 import { dailyProgress } from '../../utils/dailyPlan'
+import { BoardNavigation } from './BoardNavigation'
 
 function DailyProgressBadge() {
   const notes = useWallStore((state) => state.notes)
@@ -14,7 +15,6 @@ function DailyProgressBadge() {
 }
 
 export function Header() {
-  const name = useWallStore((s) => s.wallName)
   const tasksOpen = useWallStore((s) => s.tasksOpen)
   const [saved, setSaved] = useState(storageHealth.available)
   useEffect(() => {
@@ -31,7 +31,7 @@ export function Header() {
     <div className="brand-group">
       <a href="./" className="brand" aria-label="WALLFLOW home"><img src="/favicon.svg" alt="" /><span>WALLFLOW<span className="brand-period">.</span></span></a>
       <span className="header-divider" />
-      <span className="wall-name">{name}</span>
+      <BoardNavigation />
     </div>
     <div className="header-actions"><span className={`save-status${saved ? '' : ' is-error'}`} role="status" title={saved ? undefined : 'Changes are saved for this session only'}>
       {saved ? <Check size={13} /> : <CircleAlert size={16} aria-hidden="true" />}<span>{saved ? 'Saved on this device' : 'Session only · storage unavailable'}</span></span>

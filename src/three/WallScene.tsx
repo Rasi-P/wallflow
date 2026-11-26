@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { ACESFilmicToneMapping, PCFShadowMap } from 'three'
 import type { Group } from 'three'
@@ -11,15 +11,27 @@ import { NOTE_TEXTURE_SIZE } from './textures'
 import { NoteEditorPosition } from './NoteEditorPosition'
 import { WallLoading } from '../components/ui/WallLoading'
 import { useReducedMotion } from '../hooks/useReducedMotion'
-
 import { EnvironmentLighting } from './EnvironmentLighting'
+import { PersonalStudyRoom } from './environments/PersonalStudyRoom'
+import { isPersonalStudyRoom } from './environments/studyRoomLayout'
+import { createStudyPlaster } from './environments/studyRoomMaterials'
+
+const cameraOptions = {
+  position: [0, 0.18, 14.6] as [number, number, number],
+  fov: WALL_CAMERA_FOV,
+  near: 0.1,
+  far: 110,
+}
 
 export default memo(function WallScene({ editorElement }: { editorElement: HTMLDivElement | null }) {
   const mode = useWallStore((s) => s.mode)
+  const studyRoom = useWallStore((s) => isPersonalStudyRoom(s.appearance.theme))
   const wall = useRef<Group>(null)
   const [ready, setReady] = useState(false)
   const [prototypeSurface, setPrototypeSurface] = useState<BindNoteSurface | null>(null)
   const reducedMotion = useReducedMotion()
+  const studyPlaster = useMemo(() => ready && studyRoom ? createStudyPlaster() : null, [ready, studyRoom])
+  useEffect(() => () => studyPlaster?.dispose(), [studyPlaster])
   useEffect(() => {
     let active = true
     async function prepare() {
@@ -40,7 +52,7 @@ export default memo(function WallScene({ editorElement }: { editorElement: HTMLD
 
   return <div className={`wall-scene mode-${mode}`} aria-label="Interactive three-dimensional sticky note wall">
     {ready ? <Canvas frameloop="demand" shadows={{ type: PCFShadowMap, autoUpdate: false }}
-      camera={{ position: [0, 0.18, 14.6], fov: WALL_CAMERA_FOV, near: 0.1, far: 110 }} dpr={[1, 1.75]}
+      camera={cameraOptions} dpr={[1, 1.75]}
       gl={{ antialias: true, alpha: false, powerPreference: 'high-performance', toneMapping: ACESFilmicToneMapping, toneMappingExposure: 1.04 }}
       onCreated={({ gl }) => {
         if (!prototypeSurface) return
@@ -58,9 +70,10 @@ export default memo(function WallScene({ editorElement }: { editorElement: HTMLD
       }}
       onPointerMissed={() => useWallStore.getState().select(null)}
       fallback={<div className="webgl-fallback"><h2>Your wall needs WebGL.</h2><p>Open WALLFLOW in a browser with hardware acceleration enabled.</p></div>}>
-      <EnvironmentLighting />
-      <Wall group={wall} prototypeSurface={prototypeSurface} reducedMotion={reducedMotion} />
-      <CameraRig wall={wall} reducedMotion={reducedMotion} />
+      <EnvironmentLighting studyRoom={studyRoom} />
+      <Wall group={wall} prototypeSurface={prototypeSurface} reducedMotion={reducedMotion} studyPlaster={studyPlaster} />
+      {studyPlaster && <PersonalStudyRoom board={wall} plasterTexture={studyPlaster} />}
+      <CameraRig wall={wall} reducedMotion={reducedMotion} studyRoom={studyRoom} />
       <NoteEditorPosition wall={wall} element={editorElement} />
     </Canvas> : <WallLoading />}
   </div>

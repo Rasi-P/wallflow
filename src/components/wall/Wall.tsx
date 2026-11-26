@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import type { RefObject } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { MathUtils, MeshBasicMaterial, PlaneGeometry } from 'three'
-import type { Group } from 'three'
+import type { Group, Texture } from 'three'
 import { useWallStore } from '../../stores/wallStore'
 import { createContactShadow } from '../../three/textures'
 import { createPaperGeometry, PAPER_SHAPE_COUNT, paperShapeForId } from '../../three/paperGeometry'
@@ -29,8 +29,8 @@ function noteTransformsChanged(previous: StickyNoteData[] | null, notes: StickyN
   })
 }
 
-export function Wall({ group, prototypeSurface, reducedMotion = false }: {
-  group: RefObject<Group | null>; prototypeSurface?: BindNoteSurface | null; reducedMotion?: boolean
+export function Wall({ group, prototypeSurface, reducedMotion = false, studyPlaster }: {
+  group: RefObject<Group | null>; prototypeSurface?: BindNoteSurface | null; reducedMotion?: boolean; studyPlaster: Texture | null
 }) {
   const gl = useThree((state) => state.gl)
   const invalidate = useThree((state) => state.invalidate)
@@ -90,7 +90,7 @@ export function Wall({ group, prototypeSurface, reducedMotion = false }: {
 
   return (
     <group ref={group} name="wall-and-attached-notes">
-      <WallSurface />
+      <WallSurface studyPlaster={studyPlaster} />
       {sections.map((section) => <SectionMarker key={section.id} section={section} geometry={sectionGeometry} />)}
       {notes.map((note, index) => <StickyNote key={note.id} note={note} visible={visibleIds.has(note.id)} depth={noteLayerDepth(index)} paperGeometry={paperShapes[paperShapeForId(note.id)]}
         contactGeometry={contactGeometry} contactMaterial={contactMaterial} paperMotions={paperMotions} bindSurface={prototypeSurface ?? bakedSurface} />)}

@@ -21,8 +21,8 @@ export function AppearanceSettings() {
           {Object.entries(AMBIENCE_OPTIONS).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
         </select></label>
         <label>Lighting tone<select value={lighting} onChange={(event) => actions.setLighting(event.target.value === 'warm' ? 'warm' : 'daylight')}>
-          <option value="daylight">{appearance.theme === 'minimal' ? 'Soft daylight' : 'Theme lighting'}</option>
-          <option value="warm">Golden hour</option>
+          <option value="daylight">{appearance.theme === 'minimal' ? 'Neutral daylight' : 'Theme lighting'}</option>
+          <option value="warm">{appearance.theme === 'minimal' ? 'Warmer daylight' : 'Golden hour'}</option>
         </select></label>
         <div className="appearance-slider"><span><label htmlFor="wall-light-intensity">Light intensity</label><output>{appearance.intensity}%</output></span>
           <input id="wall-light-intensity" type="range" min={MIN_LIGHT_INTENSITY} max={MAX_LIGHT_INTENSITY} step={LIGHT_INTENSITY_STEP}

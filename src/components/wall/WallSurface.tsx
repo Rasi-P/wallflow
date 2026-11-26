@@ -1,11 +1,13 @@
 import { memo, useEffect, useLayoutEffect, useMemo } from 'react'
 import { useThree } from '@react-three/fiber'
 import { BoxGeometry, MeshStandardMaterial } from 'three'
+import type { Texture } from 'three'
 import { useWallStore } from '../../stores/wallStore'
 import { createPlasterTexture, createWindowLight } from '../../three/textures'
 import type { EnvironmentTheme } from '../../types/wall'
 import { THEME_PRESETS, wallFinish } from '../../utils/appearance'
 import { WALL_HEIGHT, WALL_WIDTH } from '../../utils/constants'
+import { createStudyPlasterBox, STUDY_BOARD_THICKNESS, STUDY_PLASTER_RELIEF } from '../../three/environments/studyRoomMaterials'
 
 type Trim = { x: number; y: number; width: number; height: number }
 const TRIM: Record<EnvironmentTheme, Trim[]> = {
@@ -61,21 +63,25 @@ function LegacyWallAccents({ theme, finish }: { theme: EnvironmentTheme; finish:
   </>
 }
 
-export const WallSurface = memo(function WallSurface() {
+export const WallSurface = memo(function WallSurface({ studyPlaster }: { studyPlaster: Texture | null }) {
   const appearance = useWallStore((s) => s.appearance)
   const finish = wallFinish(appearance)
-  const plaster = useMemo(createPlasterTexture, [])
-  useEffect(() => () => plaster.dispose(), [plaster])
+  const thickness = studyPlaster ? STUDY_BOARD_THICKNESS : 0.38
+  const geometry = useMemo(() => studyPlaster
+    ? createStudyPlasterBox(WALL_WIDTH, WALL_HEIGHT, thickness)
+    : new BoxGeometry(WALL_WIDTH, WALL_HEIGHT, thickness), [studyPlaster, thickness])
+  const legacyBump = useMemo(() => studyPlaster ? null : createPlasterTexture(), [studyPlaster])
+  useEffect(() => () => { geometry.dispose(); legacyBump?.dispose() }, [geometry, legacyBump])
 
   return <>
-    <mesh receiveShadow position={[0, 0, -0.19]} name="solid-plaster-wall"
+    <mesh receiveShadow castShadow={studyPlaster !== null} geometry={geometry} position={[0, 0, -thickness / 2]} name="solid-plaster-wall"
       onPointerDown={(event) => event.stopPropagation()}
       onPointerOver={(event) => event.stopPropagation()}
       onDoubleClick={(event) => event.stopPropagation()}
       onClick={(event) => { event.stopPropagation(); useWallStore.getState().select(null) }}>
-      <boxGeometry args={[WALL_WIDTH, WALL_HEIGHT, 0.38]} />
-      <meshStandardMaterial color={finish.color} roughness={0.98} bumpMap={plaster} bumpScale={0.013} />
+      <meshStandardMaterial color={finish.color} roughness={0.98} map={studyPlaster} bumpMap={studyPlaster ?? legacyBump}
+        bumpScale={studyPlaster ? STUDY_PLASTER_RELIEF : 0.013} />
     </mesh>
-    <LegacyWallAccents theme={appearance.theme} finish={finish} />
+    {!studyPlaster && <LegacyWallAccents theme={appearance.theme} finish={finish} />}
   </>
 })

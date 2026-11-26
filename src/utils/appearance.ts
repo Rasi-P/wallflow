@@ -17,9 +17,9 @@ export const NOTE_TITLE_FONTS: Record<NoteTypography, string> = {
 }
 
 const MINIMAL = {
-  name: 'Minimal Wall',
-  background: '#f1eee7',
-  wall: '#f7f3eb',
+  name: 'Personal Study Room',
+  background: '#efeeea',
+  wall: '#f6eee2',
   ambientColor: '#fffdfa',
   sky: '#fffdf8',
   ground: '#c1b9aa',

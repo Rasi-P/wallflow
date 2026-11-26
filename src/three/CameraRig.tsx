@@ -10,12 +10,29 @@ import { constrainWallView, MAX_CAMERA_DISTANCE, MIN_CAMERA_DISTANCE, WALL_CAMER
 import { getStarterFrame } from './starterFrame'
 import { SAMPLE_NOTES } from '../utils/constants'
 import { positionWallFocus, resolveCameraFocus, wallFocusDistance } from './cameraFocus'
+import { compactStudyFrame, STUDY_ROOM_MAX_DISTANCE, studyRoomFrame } from './environments/studyRoomLayout'
+
+function measureCompactInsets(canvas: HTMLCanvasElement) {
+  const app = canvas.closest('.wallflow-app')
+  const bounds = canvas.getBoundingClientRect()
+  const header = app?.querySelector('.app-header')?.getBoundingClientRect()
+  const toolbar = app?.querySelector('.floating-toolbar')?.getBoundingClientRect()
+  const styles = app ? getComputedStyle(app) : null
+  const safe = (edge: 'left' | 'right') => Number.parseFloat(styles?.getPropertyValue(`--wall-safe-${edge}`) ?? '') || 0
+  return {
+    left: safe('left') + 14,
+    right: safe('right') + 14,
+    top: header?.height ? Math.max(10, header.bottom - bounds.top + 10) : 116,
+    bottom: toolbar?.height ? Math.max(10, bounds.bottom - toolbar.top + 10) : 204,
+  }
+}
 
 function wallOrientation([tilt, turn]: Point2) {
   return new Euler(MathUtils.degToRad(tilt), MathUtils.degToRad(turn), 0)
 }
 
-function homeTarget(mobile: boolean, starterX: number | undefined, starterY: number | undefined) {
+function homeTarget(mobile: boolean, starterX: number | undefined, starterY: number | undefined, roomX?: number, roomY?: number) {
+  if (roomX !== undefined && roomY !== undefined) return new Vector3(roomX, roomY, 0)
   const { notes, wallRotation } = useWallStore.getState()
   if (starterX !== undefined && starterY !== undefined) return new Vector3(starterX, starterY, 0).applyEuler(wallOrientation(wallRotation))
   const firstNote = notes.find((note) => !note.archived)
@@ -23,9 +40,10 @@ function homeTarget(mobile: boolean, starterX: number | undefined, starterY: num
   return new Vector3(0, 0.18, 0)
 }
 
-export function CameraRig({ wall, reducedMotion = false }: { wall: RefObject<Group | null>; reducedMotion?: boolean }) {
+export function CameraRig({ wall, reducedMotion = false, studyRoom }: { wall: RefObject<Group | null>; reducedMotion?: boolean; studyRoom: boolean }) {
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null)
   const camera = useThree((state) => state.camera)
+  const canvas = useThree((state) => state.gl.domElement)
   const invalidate = useThree((state) => state.invalidate)
   const { width, height } = useThree((state) => state.size)
   const mode = useWallStore((s) => s.mode)
@@ -40,13 +58,47 @@ export function CameraRig({ wall, reducedMotion = false }: { wall: RefObject<Gro
     })
   })
   const starterFrame = starterWall ? getStarterFrame(width, height) : null
+  const roomFrame = studyRoom ? studyRoomFrame(width, height) : null
   const starterX = starterFrame?.x, starterY = starterFrame?.y
-  const baseDistance = starterFrame?.distance ?? (mobile ? 14.6 : MathUtils.clamp(10.4 / (2 * Math.tan(MathUtils.degToRad(WALL_CAMERA_FOV / 2)) * aspect), 14.6, MAX_CAMERA_DISTANCE))
+  const roomX = roomFrame?.x, roomY = roomFrame?.y
+  const roomOverview = roomFrame !== null
+  const compact = studyRoom && !roomOverview
+  const layout = roomOverview ? 'room' : compact ? 'compact' : 'wall'
+  const [compactLimit, setCompactLimit] = useState(MAX_CAMERA_DISTANCE)
+  const maxDistance = roomOverview ? STUDY_ROOM_MAX_DISTANCE : compact ? compactLimit : MAX_CAMERA_DISTANCE
+  const boardDistance = starterFrame?.distance ?? (mobile ? 14.6 : MathUtils.clamp(10.4 / (2 * Math.tan(MathUtils.degToRad(WALL_CAMERA_FOV / 2)) * aspect), 14.6, MAX_CAMERA_DISTANCE))
+  const baseDistance = roomFrame?.distance ?? boardDistance
   const distanceRef = useRef(baseDistance)
   const initializedCamera = useRef<Camera | null>(null)
+  const previousHome = useRef<{ layout: typeof layout; target: Vector3; position: Vector3 } | null>(null)
   const transition = useRef<{ position: Vector3; target: Vector3; kind: 'reset' | 'zoom' | 'focus' | 'section'; anchor?: Point2; distance?: number } | null>(null)
   const handledCommand = useRef<typeof command>(null)
   const lastBounds = useRef({ tilt: NaN, turn: NaN, aspect: NaN })
+
+  const getHome = useCallback(() => {
+    if (compact) {
+      const { notes, wallRotation } = useWallStore.getState()
+      const fit = compactStudyFrame(width, height, notes, wallRotation, measureCompactInsets(canvas))
+      return { target: new Vector3(fit.x, fit.y, 0), distance: fit.distance, limit: fit.maxDistance }
+    }
+    return {
+      target: homeTarget(mobile, starterX, starterY, roomX, roomY),
+      distance: baseDistance,
+      limit: roomOverview ? STUDY_ROOM_MAX_DISTANCE : MAX_CAMERA_DISTANCE,
+    }
+  }, [compact, width, height, canvas, mobile, starterX, starterY, roomX, roomY, baseDistance, roomOverview])
+
+  const updateZoomRange = useCallback((distance: number, limit: number) => {
+    distanceRef.current = distance
+    const control = controls.current
+    if (control) control.maxDistance = limit
+    if (compact) setCompactLimit(limit)
+    useWallStore.getState().setZoomBounds([Math.round(distance / limit * 100), Math.round(distance / MIN_CAMERA_DISTANCE * 100)])
+    if ('far' in camera && 'updateProjectionMatrix' in camera && typeof camera.updateProjectionMatrix === 'function') {
+      camera.far = compact ? Math.max(110, limit + 52) : 110
+      camera.updateProjectionMatrix()
+    }
+  }, [camera, compact])
 
   const constrain = useCallback(() => {
     const control = controls.current
@@ -61,20 +113,27 @@ export function CameraRig({ wall, reducedMotion = false }: { wall: RefObject<Gro
   }, [aspect, camera, wall])
 
   useEffect(() => {
-    distanceRef.current = baseDistance
-    if (initializedCamera.current !== camera) {
+    if (width <= 0 || height <= 0) return
+    const { target, distance, limit } = getHome()
+    const position = target.clone().add(new Vector3(0, 0, distance))
+    const control = controls.current
+    const previous = previousHome.current
+    const wasAtHome = control && previous &&
+      camera.position.distanceToSquared(previous.position) < 0.001 && control.target.distanceToSquared(previous.target) < 0.001
+    updateZoomRange(distance, limit)
+    const { editingId, draggingId } = useWallStore.getState()
+    if (initializedCamera.current !== camera || previous?.layout !== layout || (studyRoom && wasAtHome && !editingId && !draggingId)) {
       initializedCamera.current = camera
-      const target = homeTarget(mobile, starterX, starterY)
       transition.current = null
-      camera.position.copy(target).add(new Vector3(0, 0, baseDistance))
-      controls.current?.target.copy(target)
-      controls.current?.update()
+      camera.position.copy(position)
+      camera.lookAt(target)
+      control?.target.copy(target)
+      control?.update()
     }
-    const distance = controls.current?.getDistance() || baseDistance
-    useWallStore.getState().setZoomPercent(Math.round(baseDistance / distance * 100))
-    useWallStore.getState().setZoomBounds([Math.round(baseDistance / MAX_CAMERA_DISTANCE * 100), Math.round(baseDistance / MIN_CAMERA_DISTANCE * 100)])
+    previousHome.current = { layout, target, position }
+    useWallStore.getState().setZoomPercent(Math.round(distance / (control?.getDistance() || distance) * 100))
     invalidate()
-  }, [baseDistance, camera, invalidate, mobile, starterX, starterY])
+  }, [camera, getHome, height, invalidate, layout, studyRoom, updateZoomRange, width])
 
   useEffect(() => {
     const control = controls.current
@@ -99,7 +158,7 @@ export function CameraRig({ wall, reducedMotion = false }: { wall: RefObject<Gro
   }, [invalidate])
 
   useEffect(() => {
-    if (!command || !controls.current || handledCommand.current === command) return
+    if (!command || !controls.current || width <= 0 || height <= 0 || handledCommand.current === command) return
     handledCommand.current = command
     const state = useWallStore.getState()
     if (state.draggingId) return
@@ -108,12 +167,15 @@ export function CameraRig({ wall, reducedMotion = false }: { wall: RefObject<Gro
     let anchor: Point2 | undefined
     let distance: number | undefined
     if (command.kind === 'reset') {
-      target.copy(homeTarget(mobile, starterX, starterY))
-      position.copy(target).add(new Vector3(0, 0, distanceRef.current))
+      const home = getHome()
+      updateZoomRange(home.distance, home.limit)
+      target.copy(home.target)
+      position.copy(target).add(new Vector3(0, 0, home.distance))
+      previousHome.current = { layout, target: target.clone(), position: position.clone() }
     } else if (command.kind === 'zoom') {
       const pending = transition.current?.kind === 'zoom' ? transition.current : null
       const offset = pending ? pending.position.clone().sub(pending.target) : camera.position.clone().sub(target)
-      const length = MathUtils.clamp(offset.length() * (command.value ?? 1), MIN_CAMERA_DISTANCE, MAX_CAMERA_DISTANCE)
+      const length = MathUtils.clamp(offset.length() * (command.value ?? 1), MIN_CAMERA_DISTANCE, controls.current.maxDistance)
       position.copy(target).add(offset.setLength(length))
     } else {
       const focus = resolveCameraFocus(state, command.kind, command.targetId)
@@ -125,7 +187,7 @@ export function CameraRig({ wall, reducedMotion = false }: { wall: RefObject<Gro
     if (wall.current) constrainWallView(wall.current, target, position, aspect)
     transition.current = { position, target, kind: command.kind, anchor, distance }
     invalidate()
-  }, [command, camera, invalidate, mobile, aspect, wall, starterX, starterY])
+  }, [command, camera, invalidate, aspect, wall, getHome, height, layout, updateZoomRange, width])
 
   useFrame((_, delta) => {
     const control = controls.current
@@ -154,7 +216,7 @@ export function CameraRig({ wall, reducedMotion = false }: { wall: RefObject<Gro
 
   return <OrbitControls ref={controls} makeDefault
     enableDamping={!reducedMotion} dampingFactor={0.085} zoomSpeed={0.7} panSpeed={0.8} rotateSpeed={0.45}
-    minDistance={MIN_CAMERA_DISTANCE} maxDistance={MAX_CAMERA_DISTANCE}
+    minDistance={MIN_CAMERA_DISTANCE} maxDistance={maxDistance}
     minPolarAngle={Math.PI * 0.28} maxPolarAngle={Math.PI * 0.72}
     minAzimuthAngle={-Math.PI * 0.32} maxAzimuthAngle={Math.PI * 0.32}
     mouseButtons={{ LEFT: mode === 'orbit' ? MOUSE.ROTATE : mode === 'pan' ? MOUSE.PAN : undefined, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.PAN }}

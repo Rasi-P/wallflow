@@ -223,3 +223,68 @@ test('login initialization and logout never access or alter the saved local wall
   assert.equal(stored.get(legacyKey), saved)
   assert.ok(calls.every(({ url }) => url.startsWith(`${BASE}/`)))
 })
+
+test('a cross-tab account change protects the current session pending server proof and ignores an older verification', async () => {
+  const replacement = { id: 'replacement-account', displayName: 'Replacement', email: null }
+  const stale = Promise.withResolvers<Response>()
+  const next = Promise.withResolvers<Response>()
+  const { api, calls } = mockApi(() => json(user), () => stale.promise, () => next.promise)
+  const auth = createAuthSession(api, () => {})
+  await auth.verify()
+  const earlier = auth.verify()
+  const refresh = auth.verifyAfterAccountChange()
+  assert.deepEqual(auth.store.getState(), {
+    status: 'authenticated', user, signingOut: false, verifyingAccountChange: true,
+    logoutError: undefined, recheckError: undefined,
+  })
+  stale.resolve(json(user))
+  await earlier
+  const pending = auth.store.getState()
+  assert.ok(pending.status === 'authenticated' && pending.verifyingAccountChange)
+  assert.equal(pending.user.id, user.id)
+  assert.equal(calls.length, 3)
+  next.resolve(json(replacement))
+  await refresh
+  const session = auth.store.getState()
+  assert.equal(session.status, 'authenticated')
+  if (session.status === 'authenticated') assert.equal(session.user.id, replacement.id)
+})
+
+test('a 503, network failure, and generic proxy 403 preserve the authenticated workspace until retry succeeds', async () => {
+  const { api } = mockApi(
+    () => json(user),
+    () => responseError('unavailable', 503),
+    () => { throw new TypeError('network unreachable') },
+    () => new Response('Gateway error', { status: 403 }),
+    () => json(user),
+  )
+  const auth = createAuthSession(api, () => {})
+  const seen = new Set<string>()
+  auth.store.subscribe((state) => seen.add(state.status))
+  await auth.verify()
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await auth.retry()
+    const state = auth.store.getState()
+    assert.ok(state.status === 'authenticated' && state.recheckError)
+    assert.equal(state.user.id, user.id)
+    assert.equal(state.verifyingAccountChange, undefined)
+  }
+  await auth.retry()
+  assert.deepEqual([...seen], ['authenticated'])
+  assert.deepEqual(auth.store.getState(), { status: 'authenticated', user, signingOut: false, logoutError: undefined })
+})
+
+test('a cross-tab signal followed by a failed verification keeps the current session until verified', async () => {
+  const { api } = mockApi(() => json(user), () => responseError('unavailable', 503), () => json(user), () => responseError('auth_required', 403))
+  const auth = createAuthSession(api, () => {})
+  await auth.verify()
+  await auth.verifyAfterAccountChange()
+  const concealed = auth.store.getState()
+  assert.ok(concealed.status === 'authenticated' && concealed.verifyingAccountChange && concealed.recheckError)
+  assert.equal(concealed.user.id, user.id)
+  await auth.retry()
+  const recovered = auth.store.getState()
+  assert.ok(recovered.status === 'authenticated' && !recovered.verifyingAccountChange && !recovered.recheckError)
+  await auth.verifyAfterAccountChange()
+  assert.equal(auth.store.getState().status, 'anonymous')
+})

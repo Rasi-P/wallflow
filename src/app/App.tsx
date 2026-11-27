@@ -8,7 +8,7 @@ import { HelpDialog } from '../components/ui/HelpDialog'
 import { NoteEditor } from '../components/sticky-note/NoteEditor'
 import { SceneErrorBoundary } from '../components/ui/SceneErrorBoundary'
 import { WallLoading } from '../components/ui/WallLoading'
-import { useWallStore, useWorkspaceStore } from '../stores/wallStore'
+import { useWallStore, useWorkspaceStore, workspace } from '../stores/wallStore'
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts'
 import { useLocalDay } from '../hooks/useLocalDay'
 import { useReminderScheduler } from '../hooks/useReminderScheduler'
@@ -20,6 +20,9 @@ import { Welcome } from '../components/ui/Welcome'
 import { WallTutorial } from '../components/ui/WallTutorial'
 import { TUTORIAL_STEPS } from '../utils/onboarding'
 import type { ActiveSession } from '../auth/session'
+import { mountLinkedBoard, retryLinkedBoard, useLinkedBoard } from '../stores/linkedBoard'
+import { restoreSourceProtection } from '../utils/boardLinkStorage'
+import { AuthLoading, SignIn } from '../auth/SignIn'
 
 const WallScene = lazy(() => import('../three/WallScene'))
 
@@ -43,7 +46,47 @@ function BoardStage({ editorElement }: { editorElement: HTMLDivElement | null })
   </div>
 }
 
-export function App({ session, onSignOut }: { session: ActiveSession; onSignOut: () => void }) {
+type WorkspaceProps = {
+  session?: ActiveSession
+  onSignIn?: () => void
+  onSignOut: () => void
+  onRetrySession: () => void
+}
+
+export function App({ onSessionInvalid, ...props }: WorkspaceProps & { onSessionInvalid: () => void }) {
+  const account = props.session?.user
+  const ready = useWorkspaceStore((state) => state.boardOrder.length > 0)
+  const status = useLinkedBoard((state) => state.status)
+  const syncError = useLinkedBoard((state) => state.message)
+  const [deviceError, setDeviceError] = useState<string>()
+  const [deviceRetry, setDeviceRetry] = useState(0)
+
+  useLayoutEffect(() => {
+    if (account) return mountLinkedBoard(account, onSessionInvalid)
+    let cancelled = false
+    void restoreSourceProtection().then(() => {
+      if (!cancelled) workspace.openLocalBoards()
+    }, () => {
+      if (!cancelled) setDeviceError('WALLFLOW couldn’t check browser recovery storage. Retry to open your boards.')
+    })
+    return () => {
+      cancelled = true
+      workspace.closeLocalBoards()
+    }
+  }, [account?.id, onSessionInvalid, deviceRetry])
+
+  if (ready) return <BoardWorkspace {...props} />
+  const notice = account ? status === 'unavailable' && syncError : deviceError
+  if (notice) return <SignIn state={{ status: 'error', notice }} onContinue={() => {}}
+    onRetry={() => {
+      if (account) void retryLinkedBoard()
+      else { setDeviceError(undefined); setDeviceRetry((attempt) => attempt + 1) }
+    }}
+    onExit={account ? props.onSignOut : props.onSignIn} exitLabel={account ? 'Sign out' : 'Back to sign-in'} />
+  return <AuthLoading opening />
+}
+
+function BoardWorkspace({ session, onSignIn, onSignOut, onRetrySession }: WorkspaceProps) {
   useKeyboardShortcuts()
   useLocalDay()
   useReminderScheduler()
@@ -63,6 +106,8 @@ export function App({ session, onSignOut }: { session: ActiveSession; onSignOut:
   const showHints = useWallStore((s) => s.showHints)
   const filtered = useWallStore((s) => hasWallFilters(s.filters))
   const onboardingComplete = useWallStore((s) => s.onboardingComplete)
+  const linked = useWorkspaceStore((s) => workspace.isLinked(s.activeBoardId))
+  const showWelcome = !linked && !onboardingComplete
   const tutorial = useWallStore((s) => s.tutorial)
   const tourTarget = typeof tutorial === 'number' ? TUTORIAL_STEPS[tutorial]?.target : undefined
 
@@ -70,9 +115,9 @@ export function App({ session, onSignOut }: { session: ActiveSession; onSignOut:
     <BoardStage editorElement={editorElement} />
     <Header />
     {tasksOpen && <TasksPanel />}
-    {!onboardingComplete && tutorial === null && <Welcome />}
+    {showWelcome && tutorial === null && <Welcome />}
     {tutorial !== null && <WallTutorial progress={tutorial} />}
-    {onboardingComplete && tutorial === null && !noteCount && !hasSections && <div className="board-empty">
+    {!showWelcome && tutorial === null && !noteCount && !hasSections && <div className="board-empty">
       <span>This board is empty.</span>
       <button type="button" className="text-button" onClick={() => useWallStore.getState().addNote()}><Plus size={16} aria-hidden="true" /> Add your first note</button>
     </div>}
@@ -85,7 +130,7 @@ export function App({ session, onSignOut }: { session: ActiveSession; onSignOut:
     </footer>
     {note && <NoteEditor key={note.id} note={note} anchor={editorAnchor} registerAnchor={registerEditor} />}
     {searchOpen && <SearchDialog />}
-    {settingsOpen && <SettingsDialog session={session} onSignOut={onSignOut} />}
+    {settingsOpen && <SettingsDialog session={session} onSignIn={onSignIn} onSignOut={onSignOut} onRetrySession={onRetrySession} />}
     {helpOpen && <HelpDialog />}
   </main>
 }

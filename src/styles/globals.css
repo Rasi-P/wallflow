@@ -199,6 +199,10 @@ button:not(:disabled):active { transform: translateY(1px); }
 .board-management-options button { background: var(--field); font-size: 13px; }
 .board-management-options button:hover:not(:disabled) { background: #e7e9de; }
 .board-management-error { margin-top: 10px; color: #863d2c; }
+.board-connection-preview { position: relative; overflow: hidden; aspect-ratio: 32 / 22; margin-top: 12px; border: 1px solid var(--line); border-radius: 8px; background: #eee8db; }
+.board-connection-preview > span { position: absolute; border-radius: 1px; box-shadow: 1px 2px 4px #4b43342a; }
+.board-connection-titles { padding-inline-start: 16px; list-style: disc; }
+.board-connection-titles li { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .board-management-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 16px; }
 .board-delete-option { color: #863d2c; }
 .board-delete-button { background: #983f31; }

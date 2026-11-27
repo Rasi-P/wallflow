@@ -49,8 +49,8 @@ export function createAuthApi(fetcher: typeof fetch = fetch) {
     return request('/logout/', { method: 'POST', headers: { 'X-CSRFToken': await csrfToken() } })
   }
 
-  async function logoutFailure(response: Response) {
-    if (response.status !== 403) return undefined
+  async function authFailure(response: Response) {
+    if (response.status !== 401 && response.status !== 403) return undefined
     const { error } = await readObject(response).catch(() => ({ error: null }))
     if (error && typeof error === 'object' && 'code' in error && typeof error.code === 'string') return error.code
   }
@@ -59,7 +59,7 @@ export function createAuthApi(fetcher: typeof fetch = fetch) {
     csrfToken,
     async currentAccount(): Promise<Account | null> {
       const response = await request('/me/')
-      if (response.status === 401 || response.status === 403) return null
+      if (await authFailure(response) === 'auth_required') return null
       if (response.status !== 200) throw new AuthApiError()
       const { id, displayName, email } = await readObject(response)
       if (typeof id !== 'string' || !id || !isProfileField(displayName) || !isProfileField(email)) throw new AuthApiError()
@@ -67,12 +67,12 @@ export function createAuthApi(fetcher: typeof fetch = fetch) {
     },
     async logout() {
       let response = await signOutRequest()
-      let code = await logoutFailure(response)
+      let code = await authFailure(response)
       if (code === 'csrf_failed') {
         response = await signOutRequest()
-        code = await logoutFailure(response)
+        code = await authFailure(response)
       }
-      if (response.status === 204 || response.status === 401 || code === 'auth_required') return
+      if (response.status === 204 || code === 'auth_required') return
       throw new AuthApiError(code)
     },
   }

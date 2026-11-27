@@ -1,56 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { BoxGeometry, DoubleSide, Group, Mesh, MeshBasicMaterial, PerspectiveCamera, Raycaster, TOUCH, Vector2, Vector3 } from 'three'
+import { BoxGeometry, DoubleSide, Group, Mesh, MeshBasicMaterial, OrthographicCamera, PerspectiveCamera, Raycaster, TOUCH, Vector2, Vector3 } from 'three'
 import { OrbitControls } from 'three-stdlib'
 import { createPaperGeometry } from '../src/three/paperGeometry.ts'
-import { constrainWallView, MAX_CAMERA_DISTANCE, MIN_CAMERA_DISTANCE, WALL_CAMERA_FOV } from '../src/three/wallViewBounds.ts'
 import { noteLayerDepth } from '../src/three/noteLayers.ts'
 import { watchNotePointer } from '../src/three/notePointer.ts'
 import { MAX_NOTES, WALL_HEIGHT, WALL_WIDTH } from '../src/utils/constants.ts'
-
-test('desktop and mobile pan bounds retain the tilted wall at every zoom', () => {
-  const wall = new Group()
-  const geometry = new BoxGeometry(WALL_WIDTH, WALL_HEIGHT, 0.38)
-  const surface = new Mesh(geometry)
-  surface.position.z = -0.19
-  wall.add(surface)
-  const raycaster = new Raycaster()
-  for (const aspect of [1440 / 900, 844 / 390, 390 / 844, 320 / 568]) {
-    const camera = new PerspectiveCamera(WALL_CAMERA_FOV, aspect, 0.1, 110)
-    for (const tilt of [-25, 0, 25]) {
-      for (const turn of [-30, 0, 30]) {
-        wall.rotation.set(tilt * Math.PI / 180, turn * Math.PI / 180, 0)
-        wall.updateMatrixWorld(true)
-        for (const [x, y, z] of [[80, 60, -12], [-80, -60, 12], [75, -75, 0]]) {
-          const target = new Vector3(x, y, z)
-          const offset = new Vector3(0.85, -0.55, 0.45)
-          for (const distance of [MAX_CAMERA_DISTANCE, 14.6, MIN_CAMERA_DISTANCE, MAX_CAMERA_DISTANCE]) {
-            camera.position.copy(target).add(offset.setLength(distance))
-            constrainWallView(wall, target, camera.position, aspect)
-            camera.lookAt(target)
-            camera.updateMatrixWorld()
-            raycaster.setFromCamera(new Vector2(), camera)
-            assert.ok(raycaster.intersectObject(surface).length, `wall disappeared at aspect ${aspect}, tilt ${tilt}, turn ${turn}, zoom ${distance}`)
-            assert.ok(Math.abs(camera.position.distanceTo(target) - distance) < 1e-8)
-            assert.equal(constrainWallView(wall, target, camera.position, aspect), false, 'bound must settle')
-          }
-        }
-      }
-    }
-  }
-  geometry.dispose()
-  surface.material.dispose()
-})
-
-test('a wall tilt leaves an already safe camera pose alone', () => {
-  const wall = new Group()
-  const position = new Vector3(0, 0.18, 14.6)
-  const target = new Vector3(0, 0.18, 0)
-  wall.rotation.set(0.25, -0.4, 0)
-  assert.equal(constrainWallView(wall, target, position, 1440 / 900), false)
-  assert.deepEqual(position.toArray(), [0, 0.18, 14.6])
-  assert.deepEqual(target.toArray(), [0, 0.18, 0])
-})
 
 test('raycasting picks the exposed paper in a rotated wall with 60 notes', () => {
   const wall = new Group()
@@ -135,7 +90,7 @@ test('OrbitControls tracks one idle touch and pans and zooms when the second arr
   const input = Object.assign(new EventTarget(), {
     style: {}, clientWidth: 390, clientHeight: 844, ownerDocument: new EventTarget(), releasePointerCapture() {},
   })
-  const camera = new PerspectiveCamera(WALL_CAMERA_FOV, 390 / 844, 0.1, 110)
+  const camera = new OrthographicCamera(-195, 195, 422, -422, 0.1, 60)
   camera.position.z = 14.6
   const controls = new OrbitControls(camera, input as unknown as HTMLElement)
   controls.touches = { ONE: undefined, TWO: TOUCH.DOLLY_PAN }
@@ -145,7 +100,7 @@ test('OrbitControls tracks one idle touch and pans and zooms when the second arr
   assert.equal(controls.target.lengthSq(), 0)
   input.dispatchEvent(pointer('pointerdown', 2, 220, 305))
   input.ownerDocument.dispatchEvent(pointer('pointermove', 2, 280, 345))
-  assert.ok(controls.getDistance() < 14.6)
+  assert.ok(camera.zoom > 1)
   assert.ok(controls.target.lengthSq() > 0)
   input.dispatchEvent(pointer('pointercancel', 2))
   input.ownerDocument.dispatchEvent(pointer('pointerup', 1))

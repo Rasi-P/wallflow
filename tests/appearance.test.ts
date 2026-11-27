@@ -1,8 +1,8 @@
 import { beforeEach, test } from 'node:test'
 import assert from 'node:assert/strict'
 import type { EnvironmentTheme, StickyNoteData } from '../src/types/wall.ts'
-import { DEFAULT_APPEARANCE, DEFAULT_NOTE_PREFERENCES, environmentLighting, MAX_LIGHT_INTENSITY,
-  MIN_LIGHT_INTENSITY, NOTE_SIZE_SCALES, THEME_PRESETS, wallFinish } from '../src/utils/appearance.ts'
+import { DEFAULT_APPEARANCE, DEFAULT_NOTE_PREFERENCES, MAX_LIGHT_INTENSITY,
+  MIN_LIGHT_INTENSITY, NOTE_SIZE_SCALES } from '../src/utils/appearance.ts'
 import { NOTE_HEIGHT, NOTE_WIDTH, SAMPLE_NOTES } from '../src/utils/constants.ts'
 import { LEGACY_WALL_STORAGE_KEY } from '../src/stores/workspaceStorage.ts'
 
@@ -21,18 +21,12 @@ beforeEach(() => {
 
 test('selecting each environment persists the theme and appearance overrides', () => {
   store.getState().setAppearance({ shade: 'mist', intensity: 110, ambience: 'airy' })
-  for (const theme of Object.keys(THEME_PRESETS) as EnvironmentTheme[]) {
+  for (const theme of ['minimal', 'office', 'study', 'studio', 'lab'] satisfies EnvironmentTheme[]) {
     store.getState().setAppearance({ theme })
     workspace.reload()
     assert.deepEqual(store.getState().appearance, { theme, shade: 'mist', intensity: 110, ambience: 'airy' })
   }
-  assert.equal(new Set(Object.keys(THEME_PRESETS).map((theme) => wallFinish({
-    ...DEFAULT_APPEARANCE, theme: theme as EnvironmentTheme,
-  }).color)).size, Object.keys(THEME_PRESETS).length)
-  assert.equal(environmentLighting(DEFAULT_APPEARANCE, 'daylight').key, 2.35)
-  assert.equal(environmentLighting(DEFAULT_APPEARANCE, 'warm').background, '#eee6da')
-  assert.equal(environmentLighting({ ...DEFAULT_APPEARANCE, theme: 'lab' }, 'daylight').keyColor, '#f2f8ff')
-  assert.ok(environmentLighting({ ...DEFAULT_APPEARANCE, ambience: 'airy' }, 'daylight').ambient > 0.72)
+
 })
 
 test('invalid saved preferences fall back individually and light intensity is bounded', () => {
@@ -118,32 +112,6 @@ test('toolbar swatches change the selected paper or update the default with no s
   addNote()
   finishEditing()
   assert.equal(store.getState().notes.at(-1)!.color, 'green')
-})
-
-test('reset restores theme and note defaults without resetting the wall or notes', () => {
-  const { setAppearance, setNoteDefaults, setLighting, setWallName, setShowHints, rotateWall, createSection, resetAppearance } = store.getState()
-  setAppearance({ theme: 'studio', ambience: 'quiet', shade: 'ivory', intensity: 90 })
-  setNoteDefaults({ color: 'blue', typography: 'sans', size: 'compact', rotation: 'straight' })
-  setLighting('warm')
-  setWallName('Research board')
-  setShowHints(false)
-  rotateWall([12, -9])
-  createSection('Drafts', [7, 2])
-  const before = store.getState()
-  resetAppearance()
-  assert.equal(store.getState().notes, before.notes)
-  assert.equal(store.getState().sections, before.sections)
-  assert.equal(store.getState().past, before.past)
-  workspace.reload()
-  const after = store.getState()
-  assert.deepEqual(after.appearance, DEFAULT_APPEARANCE)
-  assert.deepEqual(after.noteDefaults, DEFAULT_NOTE_PREFERENCES)
-  assert.equal(after.lighting, 'daylight')
-  assert.equal(after.wallName, before.wallName)
-  assert.equal(after.showHints, false)
-  assert.deepEqual(after.wallRotation, before.wallRotation)
-  assert.deepEqual(after.notes, before.notes)
-  assert.deepEqual(after.sections, before.sections)
 })
 
 test('older walls retain the default theme ID, their lighting, and note and planning data', () => {

@@ -2,7 +2,7 @@
 
 ## Vercel setup after approval
 
-Use a dedicated Vercel staging project and one stable HTTPS hostname, written here as `https://<staging-host>`. Select an approved source snapshot that includes the Supabase preview and [Vercel routing configuration](../../vercel.json). The current feature work is local and uncommitted. A Git deployment of the branch's current commit would omit it.
+Use a dedicated Vercel staging project and one stable HTTPS hostname, written here as `https://<staging-host>`. After approval, deploy the approved Git revision to the dedicated staging project. The checked-in [Vercel configuration](../../vercel.json) specifies the build and SPA routing.
 
 | Vercel setting | Value |
 | --- | --- |
@@ -10,15 +10,14 @@ Use a dedicated Vercel staging project and one stable HTTPS hostname, written he
 | Root Directory | Repository root |
 | Node.js | 24.x |
 | Install Command | `npm ci` |
-| Build Command | `npm run build -- --mode supabase-preview` |
+| Build Command | `npm run build` |
 | Output Directory | `dist` |
-| `VITE_WALLFLOW_SUPABASE_PREVIEW` | `true` |
 | `VITE_SUPABASE_URL` | `https://cxxpjrkzlhjaqxalkyct.supabase.co` |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | The `sb_publishable_` key from development project `cxxpjrkzlhjaqxalkyct` |
 
-Scope the build settings and variables to the dedicated staging target. Keep Google client credentials in the development Supabase provider and Supabase secret keys, legacy service-role JWTs, and database credentials in the operator's private environment. Supply only the three values above to the static frontend build. Exclude private `.env` files and credential artifacts from any build upload. A preview-mode build fails when the flag is absent or false or when required configuration is missing. Vite validates the key format and project origin before emitting assets. [Vite on Vercel](https://vercel.com/docs/frameworks/frontend/vite) · [Vercel environment scopes](https://vercel.com/docs/environment-variables) · [Supabase API key types](https://supabase.com/docs/guides/getting-started/api-keys)
+Scope the build settings and variables to the dedicated staging target. Keep Google client credentials in the development Supabase provider and Supabase secret keys, legacy service-role JWTs, and database credentials in the operator's private environment. Supply only the two browser variables above to the static frontend build. Exclude private `.env` files and credential artifacts from any build upload. A build fails when required configuration is missing. Vite validates the key format and project origin before emitting assets. [Vite on Vercel](https://vercel.com/docs/frameworks/frontend/vite) · [Vercel environment scopes](https://vercel.com/docs/environment-variables) · [Supabase API key types](https://supabase.com/docs/guides/getting-started/api-keys)
 
-The route config uses internal rewrites to `/index.html` for `/`, `/sign-in`, `/auth/callback`, `/app`, and `/app/`. These rewrites leave the path and query in the browser until the app processes them. The callback has `Cache-Control: no-store` and `Referrer-Policy: no-referrer`. Leave slash canonicalization off so a request to `/auth/callback` reaches the exact path the handler expects. Assets are served directly. The static staging host has no Django proxy or catch-all API rewrite. The ordinary `npm run dev`, Compose workflow, and local Supabase `npm run dev -- --mode supabase-preview` stay available. [Vercel static configuration](https://vercel.com/docs/project-configuration/vercel-json)
+The route config uses internal rewrites to `/index.html` for `/`, `/sign-in`, `/auth/callback`, `/app`, and `/app/`. These rewrites leave the path and query in the browser until the app processes them. The callback has `Cache-Control: no-store` and `Referrer-Policy: no-referrer`. Leave slash canonicalization off so a request to `/auth/callback` reaches the exact path the handler expects. Assets are served directly. The static staging host has no Django proxy or catch-all API rewrite. The ordinary `npm run dev` uses Supabase. The archived Compose workflow lives in the pinned legacy checkout. [Vercel static configuration](https://vercel.com/docs/project-configuration/vercel-json)
 
 ## OAuth configuration after approval
 
@@ -48,6 +47,20 @@ The repository review covered these nine files in order. Milestone 5 recorded a 
 
 A missing migration or hosted prerequisite blocks the corresponding acceptance check. Review and authorize any hosted application separately.
 
+Run the [retirement catalog check](../../supabase/checks/retirement-readiness.sql) through an authorized connection to the confirmed project. The connection needs read access to the migration ledger and Auth catalogs. Use `psql -X -v ON_ERROR_STOP=1 -f supabase/checks/retirement-readiness.sql` with the connection supplied privately. This transaction is read-only and reports missing migration versions, managed structures, and unexpected browser or operator RPC grants. The separate [security surface check](../../supabase/tests/security_surface.test.sql) is also read-only and checks RLS, grants, and Realtime policies. Catalog checks confirm database prerequisites. Live Auth and Realtime service settings still require operator verification.
+
+| Retirement evidence | What to record on the authorized target |
+| --- | --- |
+| Applied schema | Both catalog checks pass. Record the project reference and the nine migration versions. Confirm the Data API exposes `public` and keeps `wallflow_private` out of the exposed schema list. |
+| Auth | Confirm Google is enabled, the authorized provider callback and app allowlist match the exact hosts, and test identities are eligible by their verified subjects. Keep provider secrets out of Vercel. |
+| Realtime | Verify the project's **Allow public access** setting is disabled and independent accounts cannot receive each other's private broadcasts. |
+| Vercel | Record the deployed revision, Node version, build command, configured public variable names, and observed callback response headers. |
+| Device acceptance | Record the same approved revision tested on a laptop and a physical phone. Include Google consent, callback, expiry, live sync, offline recovery, and Quick Capture. |
+| Legacy retirement | Record account and client dispositions, the reachable old-origin recovery path, and the backup and rollback restore sign-off. |
+
+[Supabase migration history](https://supabase.com/docs/guides/deployment/database-migrations) · [Realtime service settings](https://supabase.com/docs/guides/realtime/settings)
+
+
 ## Deployment verification checklist
 
 Record the host, deployment revision, device and browser, synthetic account alias, and observed result for each check. Until it has been performed, leave it pending.
@@ -56,9 +69,13 @@ Record the host, deployment revision, device and browser, synthetic account alia
 - [ ] **Google PKCE.** Start sign-in from the stable HTTPS hostname on the laptop and physical phone. Verify the authorize request uses the exact callback and an S256 challenge. Sign in, test cancellation, and verify successful return to the editor after callback cleanup. Keep the existing localhost Google flow in the smoke test.
 - [ ] **Eligibility and sessions.** A verified, approved synthetic account opens the editor. An unapproved or disabled account stays blocked. Verify retry after approved onboarding, session persistence on reload, token refresh or expiry, and sign-out and account switching.
 - [ ] **Workspace initialization.** For a fresh approved account, confirm the first board is created. Refresh and sign in on the second device and confirm the same workspace and first-board IDs.
-- [ ] **Notes, boards and Quick Capture.** Create, edit, and archive a note, create and switch boards, and confirm changes on the other device. Run Quick Capture through the documented RPC using the user's session. Test the default and explicit targets, then retry a request UUID and verify the same note ID without duplication. [Quick Capture contract](backend-parity.md#quick-capture-api)
+- [ ] **Notes, boards and Quick Capture.** Create, edit, and archive a note, create and switch boards, and confirm changes on the other device. Run Quick Capture through the documented RPC using the user's session. Test the default and explicit targets, then retry a request UUID and verify the same note ID without duplication. [Quick Capture contract](quick-capture.md#quick-capture-api)
 - [ ] **Realtime and offline recovery.** Verify private revision notifications and updates in both directions. Disconnect one device during an edit, verify the local draft, then reconnect and confirm convergence. Exercise a same-note conflict and check that the local draft stays recoverable.
 - [ ] **Two-account isolation.** The second synthetic account sees only its own workspace, cannot read or write the first account's boards, cannot subscribe to its private topic, and does not replay its IndexedDB outbox.
-- [ ] **Zero Django API requests.** Record method and path only while signing in, opening the workspace, editing, importing synthetic browser boards, capturing, syncing, and signing out. Confirm no requests hit `/api/v1/` or the legacy backend. Verify the original Django development entry point separately.
+- [ ] **Zero Django API requests.** Record method and path only while signing in, opening the workspace, editing, importing synthetic browser boards, capturing, syncing, and signing out. Confirm no requests hit `/api/v1/` or the legacy backend. Run `npm run verify:build` on the approved artifact. Verify legacy recovery separately.
 
 The checklist is for staging acceptance. Legacy client retirement and unresolved Django browser recovery remain separate cutover work.
+
+## Promotion to the production origin
+
+Confirm that the approved revision and Node 24 build are selected and clear stale Vercel build-command overrides. Supply the production Supabase URL and its publishable key only after target approval. Register the production project Google callback at `https://<production-project-ref>.supabase.co/auth/v1/callback` and the exact app callback `https://<production-host>/auth/callback` in Supabase. Retain the old-origin recovery arrangements. Follow the [cutover gates](recovery-and-cutover.md) before moving traffic.

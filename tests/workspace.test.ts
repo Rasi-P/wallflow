@@ -5,7 +5,7 @@ import { FIRST_BOARD_ID, LEGACY_WALL_STORAGE_KEY, WORKSPACE_STORAGE_KEY } from '
 import type { Board, SavedWorkspace } from '../src/types/workspace.ts'
 import type { StickyNoteData, WallDocument } from '../src/types/wall.ts'
 import { SAMPLE_NOTES } from '../src/utils/constants.ts'
-import { BOARD_LINK_PREFIX, isProtectedSource, needsLinkRecovery, readSource, recordSource, restoreSourceProtection } from '../src/utils/boardLinkStorage.ts'
+import { BOARD_LINK_PREFIX, isProtectedSource, readSource, recordSource, restoreSourceProtection } from '../src/utils/boardLinkStorage.ts'
 import { photoPaperColors } from '../src/utils/photoWorkspaces.ts'
 import { deliverWorkspaceReminders } from '../src/utils/reminders.ts'
 import type { ReminderNotifications } from '../src/utils/reminders.ts'
@@ -576,14 +576,13 @@ test('an interrupted source stays hidden after reload and on a different account
   assert.equal(staleTab.deleteBoard(FIRST_BOARD_ID), false)
   assert.equal(staleTab.renameBoard(FIRST_BOARD_ID, 'Stale tab rename'), false)
   assert.equal(staleTab.switchBoard(FIRST_BOARD_ID), false)
-  assert.equal(needsLinkRecovery(readSource(FIRST_BOARD_ID), 'account-b'), false)
-  assert.equal(needsLinkRecovery(readSource(FIRST_BOARD_ID), 'account-a'), true)
+  assert.equal(isProtectedSource(FIRST_BOARD_ID), true)
   assert.deepEqual(open().getState().boardOrder, [second])
   assert.equal(data.get(WORKSPACE_STORAGE_KEY), workspaceBytes)
   assert.deepEqual(read().boards[FIRST_BOARD_ID], snapshot)
   // Legacy ambiguous records also stay hidden until the server resolves them.
   data.set(markerKey, JSON.stringify({ sourceId }))
-  assert.equal(needsLinkRecovery(readSource(FIRST_BOARD_ID), 'account-b'), true)
+  assert.equal(isProtectedSource(FIRST_BOARD_ID), true)
   assert.deepEqual(open().getState().boardOrder, [second])
   assert.ok(recordSource(FIRST_BOARD_ID, { sourceId, phase: 'linked' }))
   assert.deepEqual(open().getState().boardOrder, [second])

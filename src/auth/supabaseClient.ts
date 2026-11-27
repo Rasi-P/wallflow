@@ -26,7 +26,6 @@ export function createWallflowSupabaseClient(environment: SupabaseEnvironment): 
 let client: SupabaseClient | undefined
 
 export function getSupabaseClient(): SupabaseClient {
-  // Resolve optional Vite configuration only when an integration opts in.
   return client ??= createWallflowSupabaseClient({
     VITE_SUPABASE_URL: import.meta.env?.VITE_SUPABASE_URL,
     VITE_SUPABASE_PUBLISHABLE_KEY: import.meta.env?.VITE_SUPABASE_PUBLISHABLE_KEY,

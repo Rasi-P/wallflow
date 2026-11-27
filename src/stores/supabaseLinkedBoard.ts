@@ -1,19 +1,20 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Account } from '../auth/api.ts'
+import type { Account } from '../types/auth.ts'
 import { createSupabaseWorkspaceCommands } from '../auth/supabaseWorkspaceCommands.ts'
-import type { SavedWorkspace } from '../types/workspace.ts'
 import { BOARD_LINK_PREFIX } from '../utils/boardLinkStorage'
 import { createWorkspaceOutbox, workspaceOutboxKey } from '../utils/supabaseOutbox'
 import { downloadSnapshot, mountAccountBoard } from './linkedBoard'
 import { createSupabaseBrowserImports } from './supabaseBrowserImports'
 import { workspace } from './wallStore'
 import { createWorkspaceSync } from './workspaceSync'
-import { readWorkspace, WORKSPACE_STORAGE_KEY } from './workspaceStorage'
+import { WORKSPACE_STORAGE_KEY } from './workspaceStorage'
+import { parseWorkspaceBackup, workspaceBackupFormat } from '../utils/browserRecovery'
 
 export function mountSupabaseLinkedBoard(client: SupabaseClient, project: string, account: Account, verifySession: () => void) {
   return mountAccountBoard(account, (update) => {
     const lifetime = new AbortController()
     const key = workspaceOutboxKey(project, account.id)
+    const owner = { accountId: account.id, project: new URL(project).origin }
     const api = createSupabaseWorkspaceCommands(client, account.id, lifetime.signal)
     const stopped = () => lifetime.signal.aborted
     let attached = false
@@ -90,7 +91,7 @@ export function mountSupabaseLinkedBoard(client: SupabaseClient, project: string
 
     function exportWorkspace() {
       const entry = sync.snapshot()
-      if (entry) downloadSnapshot({ format: 'wallflow-supabase-workspace', accountId: account.id, project: new URL(project).origin,
+      if (entry) downloadSnapshot({ format: workspaceBackupFormat, ...owner,
         workspace: entry.draft ?? entry.base.workspace }, 'wallflow-account-workspace.json')
     }
 
@@ -111,20 +112,17 @@ export function mountSupabaseLinkedBoard(client: SupabaseClient, project: string
       retry: async () => { if (started) await sync.sync(); if (attached) void imports.recover().catch(() => {}) },
       reloadSaved: () => sync.resolve(false),
       keepDraft: () => { void sync.resolve(true) },
-      download: exportWorkspace,
       exportWorkspace,
       downloadRecovery: imports.download,
       persistDraft: sync.persistDraft,
       importBoards: (boards) => sync.importWhenSaved((base) => imports.confirm(base, boards)),
-      async restoreWorkspace(raw: string) {
-        const restore = JSON.parse(raw) as { format?: string; accountId?: string; project?: string; workspace?: SavedWorkspace }
-        if (restore?.format !== 'wallflow-supabase-workspace' || restore.accountId !== account.id
-          || restore.project !== new URL(project).origin || restore.workspace?.version !== 2
-          || !readWorkspace(JSON.stringify(restore.workspace))) {
-          throw new Error('Select a workspace backup from this account and development project.')
-        }
-        await sync.restore(restore.workspace)
+      importExport: (entries) => sync.importWhenSaved((base) => imports.confirmExport(base, entries)),
+      reviewWorkspaceBackup(raw: string) {
+        const revision = sync.snapshot()?.base.revision
+        if (revision === undefined || stopped()) throw new Error('The account workspace is unavailable.')
+        const saved = parseWorkspaceBackup(raw, owner)
+        return () => sync.restore(saved, revision)
       },
     }
-  }, true)
+  })
 }

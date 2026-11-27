@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react'
 
-export const STUDY_PHONE_MEDIA = '(max-width: 560px) and (orientation: portrait)'
+const STUDY_PHONE_MEDIA = '(max-width: 560px) and (orientation: portrait)'
 
 function subscribe(update: () => void) {
   const query = window.matchMedia(STUDY_PHONE_MEDIA)

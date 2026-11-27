@@ -149,7 +149,6 @@
 .settings-account .local-note { padding: 0; border: 0; }
 .settings-account-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .settings-account-actions .text-button { padding-inline: 7px; }
-.settings-account-error { color: #863d2c; }
 
 @media (max-width: 680px) {
   .sign-in-layout { grid-template-columns: 1fr; gap: 14px; max-width: 430px; }

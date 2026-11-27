@@ -3,7 +3,7 @@ import { setImmediate, setTimeout } from 'node:timers/promises'
 import test from 'node:test'
 import { createSupabaseAuthApi } from '../src/auth/supabaseAuth.ts'
 import { createWallflowSupabaseClient } from '../src/auth/supabaseClient.ts'
-import { createSupabasePreviewSession } from '../src/auth/supabaseSession.ts'
+import { createSupabaseSession } from '../src/auth/supabaseSession.ts'
 import { SupabaseWorkspaceDenied } from '../src/auth/supabaseWorkspace.ts'
 
 const origins = ['http://localhost:5173', 'https://wallflow-staging.example.invalid']
@@ -34,7 +34,7 @@ function fixture(path = '/', ownerId: string | null = 'owner-a', origin = origin
       return workspaceFor(owner)
     },
   }
-  const session = createSupabasePreviewSession(auth, workspace, {
+  const session = createSupabaseSession(auth, workspace, {
     currentUrl: () => location.href,
     replacePath: (next) => { location = new URL(next, origin) },
   })

@@ -1,15 +1,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { LinkedDocument } from './linkedWallApi.ts'
 import type { StickyNoteData } from '../types/wall.ts'
-import type { SavedWorkspace } from '../types/workspace.ts'
+import type { LinkedDocument, WorkspaceCommand } from '../types/workspace.ts'
 
-export interface WorkspaceCommand {
-  id: string
-  base: LinkedDocument
-  workspace: SavedWorkspace
-}
-
-export interface QuickCaptureResult {
+interface QuickCaptureResult {
   note: StickyNoteData | null
   noteId: string
   revision: string

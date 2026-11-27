@@ -1,27 +1,16 @@
-# WALLFLOW Supabase architecture
+# WALLFLOW architecture
 
-The Supabase foundation includes a versioned schema, owner-scoped reads, an atomic workspace initializer, and an opt-in browser preview. Django handles the default app’s Google sign-in, sessions, workspace sync, browser-board import, and Quick Capture.
+Vercel builds the React frontend with Vite. Supabase Auth handles Google OAuth with PKCE. The frontend exchanges the code at `/auth/callback`, scrubs callback parameters, verifies the user through Auth, and opens the workspace only after the database eligibility check. Browser-only mode opens local boards without cloud credentials or network writes.
 
-The preview requires both Vite mode `supabase-preview` and `VITE_WALLFLOW_SUPABASE_PREVIEW=true`. Its Google PKCE adapter verifies the session and opens the existing editor through the Supabase workspace adapter. The Django editor transport remains the default. Preview reads, edits, and reviewed imports use separate owner-checked Supabase functions.
+`src/types/auth.ts` and `src/types/workspace.ts` define the shared account and workspace contracts. The Supabase adapter verifies owner, revision, and command results. Workspace commands enforce ownership in PostgreSQL and commit the document, normalized projections, revision, and idempotency receipt atomically. Direct writes remain restricted by role grants and RLS.
 
-The target is the existing Vite SPA on Vercel with Google sign-in through Supabase Auth. PostgreSQL will hold the account’s workspace and boards. The editor will keep using the current `Board` and `SavedWorkspace` formats. An adapter will assemble those formats from database rows and translate committed edits into operations.
+Private Realtime broadcasts carry revision notifications. The client reads committed state after broadcasts and on focus or reconnect. IndexedDB stores a project- and account-scoped base, draft, and any in-flight operation. Independent edits merge. Overlapping edits allow the account owner to download the draft, use the saved version, or keep their changes. A cold start requires online account verification before opening cloud data.
 
-| Target path | Responsibility |
-| --- | --- |
-| Vercel SPA | Editor, 3D scenes, task views, device-only mode, and the future OAuth callback route |
-| Supabase Auth | Google OAuth, token refresh, and an account UUID for each verified user |
-| PostgreSQL | Owner and relationship checks, workspace revisions, transactional writes, import claims, and replay receipts |
-| Supabase Realtime | Private notifications of committed revisions. Devices fetch updates from PostgreSQL and catch up after reconnect. |
-| Browser IndexedDB | Per-project, per-account snapshots, drafts, and outbox commands. Browser-only data and import markers keep their existing storage and protections. |
+The browser storage readers and recovery markers support existing v1 and v2 boards. New cross-origin exports preserve source UUIDs, and imports use the same reviewed, transactional procedures as in-browser imports. Operator tooling handles historical claims and unsigned recovery files. Quick Capture uses the account's Supabase session and the documented RPC.
 
-Workspace commands compare the expected revision under a row lock and apply once per account and operation ID. The exact editor document, changed board rows, revision, change batch, and receipt commit together. The client rebases nonoverlapping note edits against the latest document. Same-note edits, delete-versus-edit, and incompatible reorders keep both versions until the user resolves them. The existing editor continues to handle undo and redo for the current board session. Applying a changed remote board rebuilds its local history to prevent undo from restoring stale peer data.
-
-Devices receive private revision hints and use conditional document reads to catch up. Reconnect, focus, and periodic checks recover when a hint is missed. A mounted, verified editor can continue offline. Reloading after a cold start requires online session verification before the editor opens an account cache.
-
-Keep each legacy account under one write authority during transition. Reconcile cloud documents and browser source claims before switching an account to Supabase. Django remains the existing runtime and the source for legacy provenance and rollback during cutover.
-
-- [Current Django workspace contract](../architecture/linked-boards.md)
-- [Schema](schema.md)
-- [RLS and database access](rls-security.md)
-- [Google OAuth and legacy identity](google-auth-setup.md)
-- [Milestone status](migration-progress.md)
+- [Schema and relationships](schema.md)
+- [Ownership and RLS](rls-security.md)
+- [Local development](local-development.md)
+- [Vercel and OAuth](vercel-staging.md)
+- [Recovery and cutover](recovery-and-cutover.md)
+- [Legacy archive](../../legacy/django/README.md)

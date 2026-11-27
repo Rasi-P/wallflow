@@ -83,10 +83,6 @@ export function recordSource(boardId: BoardId, source: SourceRecord) {
   } catch { return false }
 }
 
-export function needsLinkRecovery(source: SourceRecord | undefined, accountId: string) {
-  return source?.phase === 'unknown' || (source?.phase === 'pending' && source.accountId === accountId)
-}
-
 export async function protectSource(boardId: BoardId, source: PendingSource) {
   await saveRecoveryEntry(boardId, source)
   durableSources.set(boardId, source)

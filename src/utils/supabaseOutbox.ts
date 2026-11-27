@@ -1,6 +1,4 @@
-import type { LinkedDocument } from '../auth/linkedWallApi.ts'
-import type { WorkspaceCommand } from '../auth/supabaseWorkspaceCommands.ts'
-import type { SavedWorkspace } from '../types/workspace.ts'
+import type { LinkedDocument, SavedWorkspace, WorkspaceCommand } from '../types/workspace.ts'
 
 export interface OutboxEntry {
   base: LinkedDocument

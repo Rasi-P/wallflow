@@ -4,7 +4,7 @@ import type { Session } from '@supabase/supabase-js'
 import { supabaseAuthStorageKey } from '../../src/auth/supabaseClient.ts'
 
 export async function verifyWorkspaceBrowser(
-  project: string, desktopSession: Session, phoneSession: Session, otherSession: Session, initialNoteCount: number,
+  project: string, desktopSession: Session, phoneSession: Session, otherSession: Session, initialNoteCount: number, legacyRaw: string,
 ) {
   const preview = process.env.WALLFLOW_PREVIEW_URL
   assert.equal(preview, 'http://127.0.0.1:55329', 'Use the isolated local preview port.')
@@ -22,6 +22,13 @@ export async function verifyWorkspaceBrowser(
     const laptop = await desktop.newPage()
     const mobile = await phone.newPage()
     const options = { timeout: 20_000 }
+    const legacyRequests: string[] = []
+    for (const page of [laptop, mobile]) {
+      page.on('request', (request: { url(): string }) => {
+        const path = new URL(request.url()).pathname
+        if (path.startsWith('/api/v1/')) legacyRequests.push(path)
+      })
+    }
     for (const page of [laptop, mobile]) {
       await page.goto(preview + '/app/')
       await page.locator('.save-status--supabase').filter({ hasText: 'Synced to account' }).waitFor(options)
@@ -93,9 +100,14 @@ export async function verifyWorkspaceBrowser(
     await laptop.locator('.save-status--supabase').filter({ hasText: 'Synced to account' }).waitFor(options)
     await laptop.locator('.wall-note-count').filter({ hasText: /^1 note$/ }).waitFor(options)
     await laptop.getByRole('button', { name: 'Manage boards' }).click(options)
-    laptop.once('dialog', (dialog: { accept(): Promise<void> }) => dialog.accept())
+    let foreignConfirmation = false
+    laptop.once('dialog', (dialog: { dismiss(): Promise<void> }) => {
+      foreignConfirmation = true
+      return dialog.dismiss()
+    })
     await laptop.getByLabel('Restore workspace backup').setInputFiles(upload, options)
-    await laptop.getByRole('alert').filter({ hasText: 'Select a workspace backup from this account and development project.' }).waitFor(options)
+    await laptop.getByRole('alert').filter({ hasText: 'Select a workspace backup from this account and Supabase project.' }).waitFor(options)
+    assert.equal(foreignConfirmation, false)
     await laptop.locator('.wall-note-count').filter({ hasText: /^1 note$/ }).waitFor(options)
 
     const blocked = await browser.newContext({ storageState: storageState(otherSession) })
@@ -108,6 +120,33 @@ export async function verifyWorkspaceBrowser(
     await noStorage.locator('.save-status--supabase').filter({ hasText: 'Draft needs attention' }).waitFor(options)
     await noStorage.getByRole('button', { name: 'Manage boards' }).click(options)
     await noStorage.getByRole('button', { name: 'Download unsaved changes' }).waitFor(options)
+    const oldOrigin = 'http://localhost:55329'
+    const device = await browser.newContext({ storageState: { cookies: [], origins: [{
+      origin: oldOrigin, localStorage: [{ name: 'wallflow-wall-v1', value: legacyRaw }],
+    }] } })
+    const oldPage = await device.newPage()
+    await oldPage.goto(oldOrigin + '/sign-in')
+    await oldPage.getByRole('button', { name: 'Use this browser only' }).click(options)
+    await oldPage.getByRole('button', { name: 'Manage boards' }).click(options)
+    const exported = oldPage.waitForEvent('download', options)
+    await oldPage.getByRole('button', { name: 'Export browser boards' }).click(options)
+    const exportPath = await (await exported).path()
+    assert.ok(exportPath)
+    const portable = await readFile(exportPath)
+    assert.equal(await oldPage.evaluate(() => localStorage.getItem('wallflow-wall-v1')), legacyRaw)
+
+    const importFile = { name: 'wallflow-browser-export.json', mimeType: 'application/json', buffer: portable }
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await laptop.getByLabel('Import browser export').setInputFiles(importFile, options)
+      await laptop.getByRole('button', { name: 'Confirm import' }).click(options)
+      await laptop.getByRole('dialog').waitFor({ ...options, state: 'hidden' })
+      await laptop.locator('.board-index').filter({ hasText: '2 of 2' }).waitFor(options)
+      await laptop.getByRole('button', { name: 'Manage boards' }).click(options)
+    }
+    assert.deepEqual(legacyRequests, [])
+    const importedSourceId = JSON.parse(portable.toString()).boards[0].sourceId
+    return importedSourceId
+
   } finally {
     await browser.close()
   }

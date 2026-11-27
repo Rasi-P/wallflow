@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
-export type WorkspacePreview = {
+type WorkspacePreview = {
   id: string
   revision: string
   activeBoardId: string

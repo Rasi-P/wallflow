@@ -39,3 +39,25 @@ client_secret*.json
 *.pgdump
 *.dump
 pgdata/
+
+# Local tooling, browser recovery exports and credentials
+.vercel/
+.envrc
+*.env
+credentials.json
+service-account*.json
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite3-shm
+*.sqlite3-wal
+*.db
+*.db-shm
+*.db-wal
+*.p12
+*.pfx
+migration-export/
+wallflow-*-recovery.json
+wallflow-account-workspace.json
+wallflow-unsaved-workspace.json
+wallflow-browser-export.json

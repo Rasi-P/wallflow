@@ -90,10 +90,8 @@ export interface WallStore extends WallDocument {
   undo: () => void
   redo: () => void
   setWallName: (name: string) => void
-  setLighting: (lighting: Lighting) => void
   setAppearance: (patch: Partial<WallAppearance>) => void
   setNoteDefaults: (patch: Partial<NoteDefaults>) => void
-  resetAppearance: () => void
   setShowHints: (show: boolean) => void
   completeOnboarding: (options: FirstWallOptions) => void
   startTutorial: () => void
@@ -628,10 +626,8 @@ export function createBoardStore({ board, blank = false, visibleSlots = () => []
       return { ...next, filters: filtersForSections(state.filters, next.sections), past: [...state.past, documentOf(state)], future: state.future.slice(1), selectedId: null, selectedSectionId: null, editingId: null, draggingId: null }
     }),
     setWallName: (wallName) => set({ wallName: wallName.trim().slice(0, MAX_BOARD_NAME_LENGTH) || 'My everyday wall' }),
-    setLighting: (lighting) => set({ lighting }),
     setAppearance: (patch) => set((state) => ({ appearance: readWallAppearance({ ...state.appearance, ...patch }) })),
     setNoteDefaults: (patch) => set((state) => ({ noteDefaults: readNoteDefaults({ ...state.noteDefaults, ...patch }) })),
-    resetAppearance: () => set({ appearance: { ...DEFAULT_APPEARANCE }, noteDefaults: { ...DEFAULT_NOTE_PREFERENCES }, lighting: 'daylight' }),
     setShowHints: (showHints) => set({ showHints }),
     completeOnboarding: ({ starter, theme, color, sampleSet, offerTutorial = true }) => {
       const state = get()

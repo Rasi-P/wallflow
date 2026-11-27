@@ -7,8 +7,8 @@ export const MAX_SECTIONS = 24
 export const MAX_SECTION_NAME = 40
 
 const PADDING = 0.15
-export const MIN_SECTION_SIZE: Point2 = [2, 1.6]
-export const MAX_SECTION_SIZE: Point2 = [WALL_WIDTH - 2 * PADDING, WALL_HEIGHT - 2 * PADDING]
+const MIN_SECTION_SIZE: Point2 = [2, 1.6]
+const MAX_SECTION_SIZE: Point2 = [WALL_WIDTH - 2 * PADDING, WALL_HEIGHT - 2 * PADDING]
 const DEFAULT_SIZE: Point2 = [SECTION_WIDTH, SECTION_HEIGHT]
 
 const clamp = (value: number, minimum: number, maximum: number) => Math.max(minimum, Math.min(maximum, value))
@@ -27,17 +27,10 @@ export function clampSectionPosition([x, y]: Point2, [width, height]: Point2 = D
   return [clamp(x, -limitX, limitX), clamp(y, -limitY, limitY)]
 }
 
-export function sectionBounds(section: WallSection) {
+function sectionBounds(section: WallSection) {
   const [x, y] = section.position
   const [width, height] = getSectionSize(section)
   return { left: x - width / 2, right: x + width / 2, top: y + height / 2, bottom: y - height / 2 }
-}
-
-export function resizeSectionFromCorner(section: WallSection, [x, y]: Point2) {
-  const { left, top } = sectionBounds(section)
-  const width = clamp(x - left, MIN_SECTION_SIZE[0], Math.max(MIN_SECTION_SIZE[0], WALL_WIDTH / 2 - PADDING - left))
-  const height = clamp(top - y, MIN_SECTION_SIZE[1], Math.max(MIN_SECTION_SIZE[1], top + WALL_HEIGHT / 2 - PADDING))
-  return { position: [left + width / 2, top - height / 2] as Point2, size: [width, height] as Point2 }
 }
 
 export function placeSection(sections: WallSection[], slots: Point2[], [width, height]: Point2 = DEFAULT_SIZE): Point2 {

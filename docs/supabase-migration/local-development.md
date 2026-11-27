@@ -2,7 +2,7 @@
 
 ## Current app
 
-Use Node 22.18 or later. The Supabase SDK requires Node 22 or later and the existing test runner uses native TypeScript stripping. Run `npm ci`, `npm test`, `npm run typecheck`, and `npm run build` from the repository root. The Django-backed development workflow uses the existing settings and Vite proxy.
+Use Node 24 and run `npm ci` from the repository root. If you previously used `.env.supabase-preview.local`, copy its URL and publishable key to the ignored `.env.local`. Set the local project URL and publishable key in an ignored `.env.local`. Use `npm run dev` for Vite and `npm run build` for the production build. `npm test`, `npm run typecheck`, and `npm run verify:build` cover the frontend and built assets.
 
 ## Isolated Supabase stack
 
@@ -33,7 +33,7 @@ The CLI output file contains local secrets. Keep it private, and pass only the p
 Install Playwright and Chromium in your test environment. Start the isolated preview on loopback port 55329 using the local Supabase API URL and publishable key.
 
 ```sh
-VITE_WALLFLOW_SUPABASE_PREVIEW=true npm run dev -- --mode supabase-preview --host 127.0.0.1 --port 55329
+npm run dev --host 127.0.0.1 --port 55329
 ```
 
 In another terminal, run the same Data API test with `WALLFLOW_PREVIEW_URL=http://127.0.0.1:55329`. If Playwright is installed outside the repository, also set `WALLFLOW_PLAYWRIGHT_MODULE` to its absolute `index.mjs` path. The test provisions two synthetic accounts and signs in with independent sessions before loading the real editor in laptop and phone viewports.
@@ -50,15 +50,14 @@ The development database operator calls `wallflow_private.import_django_workspac
 2. Review the repository migrations and their tests locally. Link the CLI to the development reference with `supabase link --project-ref <development-project-ref>` from a checkout dedicated to this work. Keep the CLI access token and database password in the CLI credential store or a trusted operations environment. Use the project's authorized migration administrator for the schema, custom role, and managed Auth read grants.
 3. Preview the migration plan with `supabase db push --linked --dry-run` on CLI 2.113, or `supabase db push --remote --dry-run` on newer CLI versions that use explicit remote targeting. Verify the linked project reference and the pending WALLFLOW migrations. After approval for the write, apply using the same target flag without `--dry-run`.
 4. Configure the development Google provider using the [OAuth setup](google-auth-setup.md). Set the Site URL and callback allowlist for the exact development app origin.
-5. Create an ignored `.env.supabase-preview.local` file and fill in the development values.
+5. Create an ignored `.env.local` file and fill in the development values.
 
 ```dotenv
-VITE_WALLFLOW_SUPABASE_PREVIEW=true
 VITE_SUPABASE_URL=
 VITE_SUPABASE_PUBLISHABLE_KEY=
 ```
 
-6. Start Vite with `npm run dev -- --mode supabase-preview` and open the allowlisted origin. The mode and flag must both be set. Use `npm run build -- --mode supabase-preview` for an explicitly approved staging build. Configure its host to serve the SPA at `/auth/callback`, `/sign-in`, and `/app/`. Keep OAuth callback query strings out of access logs and set `Referrer-Policy: no-referrer` on the callback. The ordinary `npm run dev` and `npm run build` entry points select Django.
+6. Start Vite with `npm run dev` and open the allowlisted origin. Build with `npm run build`. Follow the [Vercel runbook](vercel-staging.md) for an approved staging target.
 7. For a physical laptop and phone, use an authorized HTTPS development preview origin reachable from both devices. Allowlist that origin’s callback and approve a new Google test account by verified subject. Sign in on each device with that account. Create separate notes, edit the same note from both devices, and disconnect one device before an edit. Reconnect and verify the sync status, the conflict choices, and convergence. Confirm a second test account opens its own workspace.
 
 Use the disposable local stack for the SQL fixture suite. A linked project, a production endpoint, or a Django database connection string is outside that test workflow.
@@ -67,6 +66,6 @@ Use the disposable local stack for the SQL fixture suite. A linked project, a pr
 - [Local and hosted CLI targets](https://supabase.com/docs/guides/local-development/local-and-hosted-projects)
 - [Database tests](https://supabase.com/docs/guides/local-development/testing/overview)
 
-See the [Milestone 4 staging rehearsal](staging-rehearsal.md) for an executable synthetic Django export/import and backup/restore runbook, its evidence, and the hosted verification checklist.
+See the [Milestone 4 staging rehearsal](../../legacy/django/docs/staging-rehearsal.md) for an executable synthetic Django export/import and backup/restore runbook, its evidence, and the hosted verification checklist.
 
 The [Vercel HTTPS staging runbook](vercel-staging.md) specifies the dedicated build, callback configuration, migration prerequisites, and staging acceptance checks.

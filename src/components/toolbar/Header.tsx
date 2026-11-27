@@ -20,7 +20,6 @@ export function Header() {
   const linked = useWorkspaceStore((s) => workspace.isLinked(s.activeBoardId))
   const accountStatus = useLinkedBoard((s) => s.status)
   const accountMessage = useLinkedBoard((s) => s.message)
-  const supabase = useLinkedBoard((s) => s.supabase)
   const durable = useLinkedBoard((s) => s.durable)
   const [saved, setSaved] = useState(storageHealth.available)
   useEffect(() => {
@@ -33,15 +32,12 @@ export function Header() {
       window.removeEventListener('wallflow-storage-restored', update)
     }
   }, [])
-  const savedLabel = linked && supabase
+  const savedLabel = linked
     ? accountStatus === 'saved' ? 'Synced to account'
       : accountStatus === 'conflict' ? 'Conflict needs attention'
         : accountStatus === 'offline' ? 'Offline · waiting to sync'
           : accountStatus === 'unsaved' ? 'Draft needs attention'
             : durable ? 'Saved on this device' : 'Saving on this device…'
-    : linked
-    ? accountStatus === 'saved' ? 'Saved to your account' : accountStatus === 'saving' ? 'Saving to your account…'
-      : accountStatus === 'unavailable' ? 'Account sync unavailable' : 'Account board · unsaved changes'
     : saved ? 'Saved on this device' : 'Session only · storage unavailable'
   const saveError = linked ? ['conflict', 'unsaved', 'unavailable', 'offline'].includes(accountStatus) : !saved
   return <header className="app-header">
@@ -50,7 +46,7 @@ export function Header() {
       <span className="header-divider" />
       <BoardNavigation />
     </div>
-    <div className="header-actions"><span className={`save-status${linked && supabase ? ' save-status--supabase' : ''}${saveError ? ' is-error' : ''}`} role="status"
+    <div className="header-actions"><span className={`save-status${linked ? ' save-status--supabase' : ''}${saveError ? ' is-error' : ''}`} role="status"
       title={saveError ? linked ? accountMessage : 'Changes are saved for this session only' : undefined}>
       {saveError ? <CircleAlert size={16} aria-hidden="true" /> : <Check size={13} />}<span>{savedLabel}</span></span>
       <IconButton id="wall-task-panel-trigger" data-tour-anchor="tasks" label="Today, reminders, and archive" data-tooltip="Today & tasks" active={tasksOpen} aria-expanded={tasksOpen}

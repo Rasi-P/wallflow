@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { WorkspaceCommandError } from '../src/auth/supabaseWorkspaceCommands.ts'
-import type { WorkspaceCommand } from '../src/auth/supabaseWorkspaceCommands.ts'
-import type { LinkedDocument } from '../src/auth/linkedWallApi.ts'
+import type { LinkedDocument, WorkspaceCommand } from '../src/types/workspace.ts'
 import { createWorkspaceSync } from '../src/stores/workspaceSync.ts'
 import { mergeWorkspace } from '../src/utils/workspaceMerge.ts'
 import type { SavedWorkspace } from '../src/types/workspace.ts'
@@ -195,11 +194,28 @@ test('closing a workspace during a durable backup restore prevents stale publica
   })
   const sync = runtime.create()
   await sync.start()
-  const restoration = sync.restore(edit(initial, 0, 'Recovery after switching'))
+  const restoration = sync.restore(edit(initial, 0, 'Recovery after switching'), '0')
   await commitStarted.promise
   const closed = sync.close()
   commitFinished.resolve()
   await Promise.all([restoration, closed])
   assert.deepEqual(runtime.visible.map(titles), [['A', 'B']])
   assert.equal(runtime.sent.length, 0)
+})
+
+test('backup restore requires the reviewed server revision and a writable online outbox', async () => {
+  const runtime = sandbox()
+  const sync = runtime.create()
+  await sync.start()
+  const recovered = edit(initial, 0, 'Old backup')
+  runtime.connectivity(false)
+  await assert.rejects(sync.restore(recovered, '0'), /before restoring/)
+  runtime.connectivity(true)
+  runtime.remote(edit(initial, 1, 'New remote edit'))
+  await assert.rejects(sync.restore(recovered, '0'), /workspace changed/)
+  assert.equal(runtime.sent.length, 0)
+  assert.deepEqual(titles(runtime.visible.at(-1)!), ['A', 'New remote edit'])
+  assert.equal(sync.snapshot()?.draft, undefined)
+  await assert.rejects(sync.restore(recovered, '0'), /workspace changed/)
+  await sync.close()
 })

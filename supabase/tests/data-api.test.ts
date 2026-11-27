@@ -9,7 +9,7 @@ import { createClient } from '@supabase/supabase-js'
 import { createSupabaseAuthApi } from '../../src/auth/supabaseAuth.ts'
 import { createSupabaseWorkspaceApi, SupabaseWorkspaceDenied } from '../../src/auth/supabaseWorkspace.ts'
 import { createSupabaseWorkspaceCommands, WorkspaceCommandError } from '../../src/auth/supabaseWorkspaceCommands.ts'
-import type { LinkedDocument } from '../../src/auth/linkedWallApi.ts'
+import type { LinkedDocument } from '../../src/types/workspace.ts'
 import { LEGACY_WALL_STORAGE_KEY, WORKSPACE_STORAGE_KEY, loadWorkspace } from '../../src/stores/workspaceStorage.ts'
 import { mergeWorkspace } from '../../src/utils/workspaceMerge.ts'
 
@@ -31,7 +31,7 @@ const admin = createClient(origin, localAdminKey, options)
 const testClient = () => createClient(origin, publicKey, options)
 const databaseContainer = process.env.WALLFLOW_LOCAL_DB_CONTAINER ?? 'supabase_db_wallflow-supabase-foundation'
 assert.ok(['supabase_db_wallflow-supabase-foundation', 'supabase_db_wallflow-m4-rehearsal',
-  'supabase_db_wallflow-m5-parity', 'supabase_db_wallflow-m5-verify'].includes(databaseContainer))
+  'supabase_db_wallflow-m5-parity', 'supabase_db_wallflow-m5-verify', 'supabase_db_wallflow-supabase-only-test', 'supabase_db_wallflow-retirement-test'].includes(databaseContainer))
 
 function localSql(statement: string) {
   execFileSync('docker', [
@@ -270,13 +270,17 @@ test('local Supabase Auth sessions enforce Data API ownership, refresh, revocati
     const phoneSession = (await thirdDevice.auth.getSession()).data.session
     const otherSession = (await b.client.auth.getSession()).data.session
     assert.ok(desktopSession && phoneSession && otherSession)
-    await verifyWorkspaceBrowser(origin, desktopSession, phoneSession, otherSession,
-      browserCopy.document.notes.filter((note) => !note.archived).length)
+    const portableSourceId = await verifyWorkspaceBrowser(origin, desktopSession, phoneSession, otherSession,
+      browserCopy.document.notes.filter((note) => !note.archived).length, legacyRaw)
     const originalOwner = (await writer.read())!.workspace
     assert.ok(originalOwner.boards[importedBoardId].document.notes.some((note) => note.title === 'Draft through a network interruption'))
     assert.ok(originalOwner.boards[importedBoardId].document.notes.every((note) => note.title !== 'Private draft for original account'))
-    assert.deepEqual((await otherAccount.read())?.workspace.boards[bWorkspace.activeBoardId].document.notes.map((note) => note.title), ['Owner B only'])
-    t.diagnostic('Desktop and mobile viewports, two-way sync, export/restore, cross-account restore rejection, IndexedDB reload, reconnect, offline switch, and blocked storage passed.')
+    const recovered = (await otherAccount.read())!
+    assert.deepEqual(recovered.workspace.boards[bWorkspace.activeBoardId].document.notes.map((note) => note.title), ['Owner B only'])
+    assert.ok(recovered.claimedSources.includes(portableSourceId))
+    assert.equal(recovered.workspace.boardOrder.length, 2)
+    assert.ok(!(await writer.read())!.claimedSources.includes(portableSourceId))
+    t.diagnostic('Desktop and mobile viewports, two-way sync, export/restore, cross-account restore rejection, IndexedDB reload, reconnect, offline switch, blocked storage, and cross-origin browser export, import and replay passed.')
   }
 
   const v2BoardId = randomUUID()

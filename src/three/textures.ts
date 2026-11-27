@@ -1,4 +1,4 @@
-import { CanvasTexture, RepeatWrapping, SRGBColorSpace } from 'three'
+import { CanvasTexture, SRGBColorSpace } from 'three'
 import type { StickyNoteData } from '../types/wall.ts'
 import { NOTE_COLORS } from '../utils/constants.ts'
 import type { TaskInk } from '../utils/noteTasks.ts'
@@ -20,39 +20,6 @@ function canvas(size: number) {
 function random(seed: number) {
   let value = seed
   return () => { value = (value * 16807) % 2147483647; return value / 2147483647 }
-}
-
-export function createPlasterTexture() {
-  const size = 512
-  const cells = 16
-  const cellSize = size / cells
-  const { element, context } = canvas(size)
-  const image = context.createImageData(size, size)
-  const noise = random(42)
-  const plaster = Array.from({ length: cells * cells }, noise)
-  const ease = (fraction: number) => fraction * fraction * (3 - 2 * fraction)
-  const mix = (a: number, b: number, amount: number) => a + (b - a) * amount
-  for (let y = 0; y < size; y++) {
-    const row = Math.floor(y / cellSize)
-    const nextRow = (row + 1) % cells
-    const vertical = ease((y % cellSize) / cellSize)
-    for (let x = 0; x < size; x++) {
-      const col = Math.floor(x / cellSize)
-      const right = (col + 1) % cells
-      const across = ease((x % cellSize) / cellSize)
-      const top = mix(plaster[row * cells + col], plaster[row * cells + right], across)
-      const bottom = mix(plaster[nextRow * cells + col], plaster[nextRow * cells + right], across)
-      const value = 151 + 43 * mix(top, bottom, vertical) + 18 * noise()
-      const index = (y * size + x) * 4
-      image.data[index] = image.data[index + 1] = image.data[index + 2] = value
-      image.data[index + 3] = 255
-    }
-  }
-  context.putImageData(image, 0, 0)
-  const texture = new CanvasTexture(element)
-  texture.wrapS = texture.wrapT = RepeatWrapping
-  texture.repeat.set(6, 4)
-  return texture
 }
 
 const sketchPaths = new Map<SketchId, readonly [Path2D, Path2D]>()
@@ -334,24 +301,4 @@ export function createContactShadow() {
   const texture = new CanvasTexture(element)
   texture.colorSpace = SRGBColorSpace
   return texture
-}
-
-export function createWindowLight() {
-  const { element, context: ctx } = canvas(512)
-  ctx.save()
-  ctx.translate(256, 256)
-  ctx.rotate(-0.5)
-  ctx.filter = 'blur(29px)'
-  ctx.fillStyle = 'rgba(81,64,42,0.09)'
-  ctx.fillRect(-500, -130, 1000, 65)
-  ctx.fillRect(-500, 130, 1000, 65)
-  ctx.fillRect(125, -500, 60, 1000)
-  ctx.restore()
-  const fade = ctx.createRadialGradient(256, 256, 96, 256, 256, 253)
-  fade.addColorStop(0, '#fff')
-  fade.addColorStop(1, '#fff0')
-  ctx.globalCompositeOperation = 'destination-in'
-  ctx.fillStyle = fade
-  ctx.fillRect(0, 0, 512, 512)
-  return new CanvasTexture(element)
 }

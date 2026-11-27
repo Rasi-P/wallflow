@@ -12,22 +12,38 @@ import { useWallStore, workspace } from './wallStore'
 
 const VISIBLE_REFRESH_MS = 15_000
 
-type Status = 'checking' | 'saved' | 'saving' | 'unsaved' | 'conflict' | 'unavailable'
-type State = {
-  account?: Account; status: Status; message?: string; linked: boolean
+export type LinkedStatus = 'checking' | 'saved' | 'saving' | 'unsaved' | 'conflict' | 'unavailable' | 'offline'
+export type LinkedState = {
+  account?: Account; status: LinkedStatus; message?: string; linked: boolean
   hasRecovery?: boolean; recoveryPending?: boolean; importCount?: number
+  supabase?: boolean; durable?: boolean
 }
-const state = createStore<State>(() => ({ status: 'checking', linked: false }))
-type Client = ReturnType<typeof runLinkedBoard>
-let client: Client | undefined
+const state = createStore<LinkedState>(() => ({ status: 'checking', linked: false }))
+export type AccountBoardClient = ReturnType<typeof runLinkedBoard> & {
+  exportWorkspace?: () => void
+  keepDraft?: () => void
+  persistDraft?: () => Promise<boolean>
+  restoreWorkspace?: (raw: string) => Promise<void>
+}
+let client: AccountBoardClient | undefined
 
-export const useLinkedBoard = <T>(select: (state: State) => T) => useStore(state, select)
+export const useLinkedBoard = <T>(select: (state: LinkedState) => T) => useStore(state, select)
 
 export function mountLinkedBoard(account: Account, verifySession: () => void) {
-  state.setState({ account, status: 'checking', linked: false }, true)
-  const active = runLinkedBoard(account.id, verifySession)
+  return mountAccountBoard(account, () => runLinkedBoard(account.id, verifySession))
+}
+
+export function mountAccountBoard(
+  account: Account,
+  open: (update: (patch: Partial<LinkedState>) => void) => AccountBoardClient,
+  supabase = false,
+) {
+  state.setState({ account, status: 'checking', linked: false, supabase }, true)
+  let closed = false
+  const active = open((patch) => { if (!closed) state.setState(patch) })
   client = active
   return () => {
+    closed = true
     if (client !== active) return
     client = undefined
     active.close()
@@ -43,8 +59,15 @@ export function retryLinkedBoard() { return client?.retry() }
 export function loadSavedLinkedBoard() { return client?.reloadSaved() }
 export function exportLinkedChanges() { client?.download() }
 export function exportBrowserRecovery() { client?.downloadRecovery() }
+export function exportAccountWorkspace() { client?.exportWorkspace?.() }
+export function keepLinkedDraft() { client?.keepDraft?.() }
+export function persistAccountDraft() { return client?.persistDraft?.() ?? Promise.resolve(true) }
+export async function restoreAccountWorkspace(raw: string) {
+  if (!client?.restoreWorkspace) throw new Error('The account workspace is unavailable.')
+  await client.restoreWorkspace(raw)
+}
 
-function downloadSnapshot(snapshot: unknown, filename: string) {
+export function downloadSnapshot(snapshot: unknown, filename: string) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' }))
   const link = document.createElement('a')
   link.href = url
@@ -66,7 +89,7 @@ function runLinkedBoard(accountId: string, verifySession: () => void) {
   let conflict = false
   let timer: ReturnType<typeof setTimeout> | undefined
   const closed = () => lifetime.signal.aborted
-  const status = (next: Status, message?: string) => {
+  const status = (next: LinkedStatus, message?: string) => {
     if (!closed()) state.setState({ status: next, message, linked: Boolean(base) })
   }
 

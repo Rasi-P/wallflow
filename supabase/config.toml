@@ -1,0 +1,26 @@
+project_id = "wallflow-supabase-foundation"
+
+[api]
+enabled = true
+port = 55321
+schemas = ["public"]
+
+[db]
+port = 55322
+shadow_port = 55320
+major_version = 17
+
+[db.seed]
+enabled = false
+
+[studio]
+port = 55323
+
+[auth]
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://localhost:5173/auth/callback"]
+enable_anonymous_sign_ins = false
+
+[auth.email]
+# The isolated local Data API suite signs in with synthetic password accounts.
+enable_signup = true

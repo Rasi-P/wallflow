@@ -70,7 +70,7 @@ services:
 
 ## Run locally
 
-Requires Node.js 20.19+ or 22.12+, npm, and the Django authentication service.
+Requires Node.js 22.18+ (Node 24 LTS recommended), npm, and the Django authentication service.
 
 1. Follow the [backend setup guide](backend/README.md) to configure PostgreSQL, apply migrations, and supply development Google OAuth credentials. Use the Google callback registration above.
 2. From `backend/` with its virtual environment active, start Django with `WALLFLOW_ORIGIN=http://localhost:5174 WALLFLOW_CALLBACK_ORIGIN=http://localhost:8002 python manage.py runserver 127.0.0.1:8002`.
@@ -89,7 +89,7 @@ npm test
 npm run build
 ```
 
-`npm test` uses Node's built-in test runner and TypeScript stripping, so it requires Node 22.18+ (Node 24 LTS is recommended). The app itself supports Vite's Node requirements above.
+`npm test` uses Node's built-in test runner and TypeScript stripping. The [Supabase foundation guide](docs/supabase-migration/local-development.md) covers the optional Supabase tooling and SQL tests.
 
 ## Use your wall
 

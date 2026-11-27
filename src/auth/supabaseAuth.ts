@@ -1,6 +1,6 @@
 import { isAuthRetryableFetchError, isAuthSessionMissingError } from '@supabase/supabase-js'
-import type { AuthChangeEvent, SupabaseClient } from '@supabase/supabase-js'
-import type { Account } from './api.ts'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Account, AuthSessionTransport } from '../types/auth.ts'
 import { supabaseAuthStorageKey } from './supabaseClient.ts'
 
 const endedSessions = new Set([
@@ -8,7 +8,7 @@ const endedSessions = new Set([
   'refresh_token_already_used', 'user_not_found', 'user_banned',
 ])
 
-export function createSupabaseAuthApi(client: SupabaseClient, project?: string) {
+export function createSupabaseAuthApi(client: SupabaseClient, project?: string): AuthSessionTransport {
   const storageKey = project ? supabaseAuthStorageKey(project) : undefined
   const lockKey = storageKey ? `${storageKey}:signed-out` : undefined
   let deviceLocked = false
@@ -60,7 +60,7 @@ export function createSupabaseAuthApi(client: SupabaseClient, project?: string) 
       if (error && lockKey && isAuthRetryableFetchError(error)) return lockDeviceSession()
       if (error && !isAuthSessionMissingError(error) && !endedSessions.has(error.code ?? '')) throw error
     },
-    subscribe(onChange: (event: AuthChangeEvent, ownerId: string | null) => void) {
+    subscribe(onChange) {
       const { data } = client.auth.onAuthStateChange((event, session) => {
         if (!locked() || event === 'SIGNED_OUT') onChange(event, session?.user.id ?? null)
       })

@@ -1,16 +1,11 @@
 import { WorkspaceCommandError } from '../auth/supabaseWorkspaceCommands.ts'
-import type { WorkspaceCommand } from '../auth/supabaseWorkspaceCommands.ts'
-import type { LinkedDocument } from '../auth/linkedWallApi.ts'
-import type { SavedWorkspace } from '../types/workspace.ts'
+import type { LinkedDocument, SavedWorkspace, WorkspaceTransport } from '../types/workspace.ts'
 import type { OutboxEntry, WorkspaceOutbox } from '../utils/supabaseOutbox.ts'
 import { mergeWorkspace, sameWorkspaceValue } from '../utils/workspaceMerge.ts'
 import type { LinkedStatus } from './linkedBoard.ts'
 
 interface SyncOptions {
-  api: {
-    read(revision?: string | null): Promise<LinkedDocument | undefined>
-    commit(operation: WorkspaceCommand): Promise<LinkedDocument>
-  }
+  api: WorkspaceTransport
   outbox: WorkspaceOutbox
   online: () => boolean
   onWorkspace: (workspace: SavedWorkspace) => void
@@ -238,7 +233,7 @@ export function createWorkspaceSync(options: SyncOptions) {
       schedule()
     },
     async importWhenSaved(action: (base: LinkedDocument) => Promise<LinkedDocument>) {
-      if (!entry || active || busy || !outboxRead || storageError || offline() || isDirty() || entry.conflict) {
+      if (!entry || closed || active || busy || !outboxRead || storageError || offline() || isDirty() || entry.conflict) {
         throw new Error('Wait for the account workspace to sync before importing.')
       }
       active = (async () => {
@@ -248,21 +243,35 @@ export function createWorkspaceSync(options: SyncOptions) {
       try { await active }
       finally { active = undefined; schedule() }
     },
-    async restore(saved: SavedWorkspace) {
-      if (!entry || closed || active || busy || isDirty() || entry.conflict) {
+    async restore(saved: SavedWorkspace, reviewedRevision: string) {
+      if (!entry || closed || active || busy || offline() || !outboxRead || storageError || isDirty() || entry.conflict) {
         throw new Error('Finish editing and sync pending changes before restoring a backup.')
       }
       const previous = entry
+      const changedSinceReview = 'The account workspace changed. Export the latest version and review the backup again.'
+      if (previous.base.revision !== reviewedRevision) throw new Error(changedSinceReview)
       active = (async () => {
-        entry = { base: previous.base, draft: sameWorkspaceValue(saved, previous.base.workspace) ? undefined : saved }
+        const remote = await options.api.read(reviewedRevision)
+        if (closed || entry !== previous || busy || offline()) throw new Error(changedSinceReview)
+        if (remote) {
+          accept(remote)
+          throw new Error(changedSinceReview)
+        }
+        const replacement: OutboxEntry = {
+          base: previous.base, draft: sameWorkspaceValue(saved, previous.base.workspace) ? undefined : saved,
+        }
+        entry = replacement
         if (!await persist()) {
-          entry = previous
+          if (entry === replacement) entry = previous
           throw new Error('The restore could not be saved on this device. Keep the backup file.')
         }
-        if (!closed) options.onWorkspace(saved)
+        if (!closed && entry === replacement) options.onWorkspace(saved)
       })()
       try { await active }
-      finally { active = undefined; schedule() }
+      finally {
+        active = undefined
+        schedule()
+      }
     },
   }
 }

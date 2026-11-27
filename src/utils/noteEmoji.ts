@@ -1,5 +1,5 @@
 export const EMOJI_CATEGORIES = ['Smileys', 'Nature', 'Objects', 'Books and education', 'Science', 'Productivity', 'Travel', 'Symbols'] as const
-export type EmojiCategory = typeof EMOJI_CATEGORIES[number]
+type EmojiCategory = typeof EMOJI_CATEGORIES[number]
 
 const emojiByCategory: Record<EmojiCategory, string> = {
   Smileys: '😀 Grinning face|happy smile;😊 Smiling face|blush happy;😂 Tears of joy|laugh lol;😍 Heart eyes|love;🥰 Smiling with hearts|love;😎 Sunglasses|cool;🤔 Thinking face|question idea;🧐 Monocle|inspect curious;😌 Relieved face|calm;😴 Sleeping face|tired rest;🙌 Raising hands|celebrate hooray;👋 Waving hand|hello goodbye',

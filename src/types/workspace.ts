@@ -24,3 +24,20 @@ export interface SavedWorkspace {
   activeBoardId: BoardId
   boards: Record<BoardId, Board>
 }
+
+export interface LinkedDocument {
+  revision: string
+  workspace: SavedWorkspace
+  claimedSources: string[]
+}
+
+export interface WorkspaceCommand {
+  id: string
+  base: LinkedDocument
+  workspace: SavedWorkspace
+}
+
+export interface WorkspaceTransport {
+  read(knownRevision?: string | null): Promise<LinkedDocument | undefined>
+  commit(command: WorkspaceCommand): Promise<LinkedDocument>
+}

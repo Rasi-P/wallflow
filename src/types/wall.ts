@@ -9,7 +9,7 @@ export type WallShade = 'theme' | 'chalk' | 'ivory' | 'mist'
 export type EnvironmentAmbience = 'theme' | 'quiet' | 'airy'
 export type NoteTypography = 'handwritten' | 'sans'
 export type NewNoteSize = 'compact' | 'standard' | 'large'
-export type NewNoteRotation = 'varied' | 'straight'
+type NewNoteRotation = 'varied' | 'straight'
 export type Point2 = [number, number]
 export type TaskPriority = 'low' | 'medium' | 'high'
 

@@ -7,9 +7,12 @@ import { storageHealth } from '../../utils/storage'
 import { Modal } from './Modal'
 import { getNoteSize } from '../../utils/noteDimensions'
 import {
-  importBrowserBoards, exportBrowserRecovery, exportLinkedChanges, loadSavedLinkedBoard, retryLinkedBoard, useLinkedBoard,
-  exportAccountWorkspace, keepLinkedDraft, restoreAccountWorkspace,
+  importBrowserBoards, importBrowserExport, exportBrowserRecovery, exportAccountWorkspace, loadSavedLinkedBoard, retryLinkedBoard, useLinkedBoard,
+  keepLinkedDraft, reviewAccountWorkspaceBackup,
 } from '../../stores/linkedBoard'
+import { exportBrowserBoards } from '../../stores/supabaseBrowserImports'
+import { parseBrowserExport, recoveryFileLimit, workspaceBackupFileLimit } from '../../utils/browserRecovery'
+import type { BrowserExportBoard } from '../../utils/browserRecovery'
 
 type Screen = 'manage' | 'create' | 'rename' | 'delete' | 'session-only' | 'import'
 
@@ -30,13 +33,13 @@ export function BoardManagementDialog({ boardId, boardName, canDelete, onClose }
   const [error, setError] = useState('')
   const [preview, setPreview] = useState<Board[]>([])
   const [selected, setSelected] = useState<string[]>([])
+  const [exportEntries, setExportEntries] = useState<BrowserExportBoard[]>()
   const [connecting, setConnecting] = useState(false)
   const account = useLinkedBoard((s) => s.account)
   const importCount = useLinkedBoard((s) => s.importCount ?? 0)
   const hasRecovery = useLinkedBoard((s) => s.hasRecovery)
   const recoveryPending = useLinkedBoard((s) => s.recoveryPending)
   const status = useLinkedBoard((s) => s.status)
-  const supabase = useLinkedBoard((s) => s.supabase)
   const accountMessage = useLinkedBoard((s) => s.message)
   const linked = workspace.isLinked(boardId)
   const content = useRef<HTMLDivElement>(null)
@@ -76,9 +79,31 @@ export function BoardManagementDialog({ boardId, boardName, canDelete, onClose }
       setError('No saved browser boards are available to import. Reload and try again.')
       return
     }
+    setExportEntries(undefined)
     setPreview(structuredClone(snapshots))
     setSelected(snapshots.map(({ id }) => id))
     open('import')
+  }
+
+  async function reviewExport(file: File) {
+    try {
+      if (file.size > recoveryFileLimit) throw new Error('The browser export is too large.')
+      const entries = parseBrowserExport(await file.text())
+      setExportEntries(entries)
+      setPreview(entries.map(({ board }) => board))
+      setSelected(entries.map(({ board }) => board.id))
+      open('import')
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : 'The browser export could not be read.')
+    }
+  }
+
+  async function downloadBrowserBoards() {
+    try {
+      await exportBrowserBoards()
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : 'The browser boards could not be exported.')
+    }
   }
 
   async function confirmImport() {
@@ -86,7 +111,8 @@ export function BoardManagementDialog({ boardId, boardName, canDelete, onClose }
     setConnecting(true)
     setError('')
     try {
-      await importBrowserBoards(preview.filter(({ id }) => selected.includes(id)))
+      if (exportEntries) await importBrowserExport(exportEntries.filter(({ board }) => selected.includes(board.id)))
+      else await importBrowserBoards(preview.filter(({ id }) => selected.includes(id)))
       onClose()
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'Couldn’t import your boards. The browser copies are still saved.')
@@ -104,13 +130,19 @@ export function BoardManagementDialog({ boardId, boardName, canDelete, onClose }
   }
 
   async function restoreBackup(file: File) {
-    if (!window.confirm('Replace this account workspace with the selected backup? Export the current workspace first if you want to keep a copy.')) return
+    if (connecting) return
+    setConnecting(true)
+    setError('')
     try {
-      if (file.size > 7_000_000) throw new Error('The workspace backup is too large.')
-      await restoreAccountWorkspace(await file.text())
+      if (file.size > workspaceBackupFileLimit) throw new Error('The workspace backup is too large.')
+      const restore = reviewAccountWorkspaceBackup(await file.text())
+      if (!window.confirm('Replace this account workspace with the selected backup? Export the current workspace first if you want to keep a copy.')) return
+      await restore()
       onClose()
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'The workspace backup could not be restored.')
+    } finally {
+      setConnecting(false)
     }
   }
 
@@ -127,23 +159,30 @@ export function BoardManagementDialog({ boardId, boardName, canDelete, onClose }
         {!canDelete && <p className="board-management-hint">Keep at least one board in your workspace.</p>}
         {linked && <p className="board-management-hint">Saved to {account?.email ?? account?.displayName ?? 'your Google account'}.</p>}
         {linked && accountMessage && <p className="board-management-error" role="alert">{accountMessage}</p>}
-        {linked && supabase && <div className="board-management-options">
+        {!linked && <button type="button" className="text-button" onClick={() => void downloadBrowserBoards()}>Export browser boards</button>}
+        {linked && <div className="board-management-options">
+          <label>Import browser export <input type="file" accept="application/json,.json"
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0]
+              event.currentTarget.value = ''
+              if (file) void reviewExport(file)
+            }} /></label>
           <button type="button" className="text-button" onClick={exportAccountWorkspace}>Export account workspace</button>
-          <label>Restore workspace backup <input type="file" accept="application/json,.json"
+          <label>Restore workspace backup <input type="file" accept="application/json,.json" disabled={connecting}
             onChange={(event) => {
               const file = event.currentTarget.files?.[0]
               event.currentTarget.value = ''
               if (file) void restoreBackup(file)
             }} /></label>
         </div>}
-        {linked && (status === 'unsaved' || status === 'conflict') && <button type="button" className="text-button" onClick={exportLinkedChanges}>Download unsaved changes</button>}
+        {linked && (status === 'unsaved' || status === 'conflict') && <button type="button" className="text-button" onClick={exportAccountWorkspace}>Download unsaved changes</button>}
         {linked && (status === 'unsaved' || status === 'unavailable' || status === 'offline') && <button type="button" className="text-button" onClick={() => void retryLinkedBoard()}>
           {status === 'unsaved' ? 'Retry save' : 'Retry sync'}
         </button>}
         {linked && status === 'conflict' && <button type="button" className="text-button" onClick={() => {
           if (window.confirm('Load the saved account board and discard unsaved changes in this tab?')) void loadSavedLinkedBoard()
         }}>Load saved board</button>}
-        {linked && supabase && status === 'conflict' && <button type="button" className="text-button" onClick={() => {
+        {linked && status === 'conflict' && <button type="button" className="text-button" onClick={() => {
           if (window.confirm('Use your draft for conflicting edits and keep the other nonconflicting changes?')) keepLinkedDraft()
         }}>Keep my conflicting edits</button>}
         {recoveryPending && <>

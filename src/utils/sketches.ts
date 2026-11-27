@@ -1,6 +1,6 @@
 // Original 64-unit pencil outlines and lighter strokes shared by the SVG picker and paper renderers.
 export const SKETCH_CATEGORIES = ['Education', 'Ideas', 'Science', 'Productivity', 'Creative'] as const
-export type SketchCategory = typeof SKETCH_CATEGORIES[number]
+type SketchCategory = typeof SKETCH_CATEGORIES[number]
 
 type Sketch = { name: string; category: SketchCategory; keywords: string; outline: string; detail: string }
 

@@ -1,7 +1,5 @@
 import { ArrowRight, CircleAlert, RefreshCw } from 'lucide-react'
-import type { AuthState } from './session'
-
-type SignInState = Extract<AuthState, { status: 'anonymous' | 'error' }>
+import type { SignInState } from '../types/auth'
 
 export function AuthLoading({ opening = false }: { opening?: boolean }) {
   return <main className="auth-loading">

@@ -1,26 +1,24 @@
 import { createStore } from 'zustand/vanilla'
-import type { Account } from './api.ts'
-import type { AuthState } from './session.ts'
-import type { createSupabaseAuthApi } from './supabaseAuth.ts'
+import type { Account, AuthSessionTransport, SignInState } from '../types/auth.ts'
 import { SupabaseWorkspaceDenied } from './supabaseWorkspace.ts'
-import type { createSupabaseWorkspaceApi, WorkspacePreview } from './supabaseWorkspace.ts'
 
 const callbackPath = '/auth/callback'
 const callbackFailed = 'Google sign-in could not be completed. Start a new sign-in to try again.'
 const sessionEnded = 'Your session ended. Sign in again to open your workspace.'
-const workspaceDenied = 'This account or session cannot open the Supabase preview.'
+const workspaceDenied = 'This account or session cannot open the workspace.'
 
 type Navigation = {
   currentUrl: () => string
   replacePath: (path: string) => void
 }
 
-type PreviewSession =
-  | Exclude<AuthState, { status: 'authenticated' }>
-  | { status: 'ready'; account: Account; workspace: WorkspacePreview }
+type SessionState =
+  | SignInState
+  | { status: 'checking' }
+  | { status: 'ready'; account: Account }
   | { status: 'blocked'; notice: string }
 
-async function completeGoogleCallback(auth: Pick<ReturnType<typeof createSupabaseAuthApi>, 'exchangeCode'>, navigation: Navigation) {
+async function completeGoogleCallback(auth: Pick<AuthSessionTransport, 'exchangeCode'>, navigation: Navigation) {
   const url = new URL(navigation.currentUrl())
   if (url.pathname !== callbackPath) return {}
 
@@ -42,13 +40,13 @@ async function completeGoogleCallback(auth: Pick<ReturnType<typeof createSupabas
   }
 }
 
-export function createSupabasePreviewSession(
-  auth: ReturnType<typeof createSupabaseAuthApi>,
-  workspace: ReturnType<typeof createSupabaseWorkspaceApi>,
+export function createSupabaseSession(
+  auth: AuthSessionTransport,
+  workspace: { open(ownerId: string, signal: AbortSignal): Promise<unknown> },
   navigation: Navigation,
 ) {
-  const store = createStore<PreviewSession>(() => ({ status: 'checking' }))
-  const update = (state: PreviewSession) => store.setState(state, true)
+  const store = createStore<SessionState>(() => ({ status: 'checking' }))
+  const update = (state: SessionState) => store.setState(state, true)
   let startup: ReturnType<typeof completeGoogleCallback> | undefined
   let connected = false
   let automaticChecks = false
@@ -87,13 +85,13 @@ export function createSupabasePreviewSession(
         return
       }
       if (previous.status !== 'ready' || previous.account.id !== account.id) update({ status: 'checking' })
-      const preview = await workspace.open(account.id, request.signal)
+      await workspace.open(account.id, request.signal)
       if (request.signal.aborted) return
       if (expectedOwnerId) {
         callbackOwnerId = undefined
         navigation.replacePath('/app/')
       }
-      update({ status: 'ready', account, workspace: preview })
+      update({ status: 'ready', account })
     } catch (error) {
       if (request.signal.aborted) return
       if (!(error instanceof SupabaseWorkspaceDenied) && previous.status === 'ready' && sessionOwnerId === previous.account.id) {

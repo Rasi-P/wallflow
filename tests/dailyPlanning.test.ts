@@ -228,7 +228,7 @@ test('local reminder inputs round-trip and timezone changes preserve the saved i
 
 test('refresh preserves plans, reminders, notification receipts and existing wall fields', () => {
   const { createSection, assignSection, updateNote, updateTask, editChecklist, setPlanned, setReminder,
-    markRemindersNotified, setReminderPermission, setWallName, setLighting } = store.getState()
+    markRemindersNotified, setReminderPermission, setWallName } = store.getState()
   const section = createSection('Studio', [8, -6])!
   updateNote(sample.id, { position: [8, -6], size: [3, 3.2], rotation: 0.3, color: 'green' })
   assignSection(sample.id, section)
@@ -241,7 +241,7 @@ test('refresh preserves plans, reminders, notification receipts and existing wal
   markRemindersNotified([expected.reminder!.id, 'invalid', expected.reminder!.id])
   setReminderPermission('granted')
   setWallName('My plans')
-  setLighting('warm')
+  store.setState({ lighting: 'warm' })
   workspace.reload()
   const state = store.getState()
   assert.deepEqual(note(), expected)

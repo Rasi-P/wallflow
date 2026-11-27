@@ -19,9 +19,10 @@ import { DEFAULT_FILTERS, hasWallFilters } from '../utils/noteSearch'
 import { Welcome } from '../components/ui/Welcome'
 import { WallTutorial } from '../components/ui/WallTutorial'
 import { TUTORIAL_STEPS } from '../utils/onboarding'
-import type { ActiveSession } from '../auth/session'
-import { mountLinkedBoard, retryLinkedBoard, useLinkedBoard } from '../stores/linkedBoard'
-import { restoreSourceProtection } from '../utils/boardLinkStorage'
+import type { Account } from '../types/auth'
+import type { MountAccountBoard } from '../stores/linkedBoard'
+import { retryLinkedBoard, useLinkedBoard } from '../stores/linkedBoard'
+import { BOARD_LINK_PREFIX, restoreSourceProtection } from '../utils/boardLinkStorage'
 import { AuthLoading, SignIn } from '../auth/SignIn'
 
 const WallScene = lazy(() => import('../three/WallScene'))
@@ -47,17 +48,16 @@ function BoardStage({ editorElement }: { editorElement: HTMLDivElement | null })
 }
 
 type WorkspaceProps = {
-  session?: ActiveSession
+  account?: Account
   onSignIn?: () => void
-  onSignOut: () => void
-  onRetrySession: () => void
+  onSignOut?: () => void
 }
 
-export function App({ onSessionInvalid, mountAccount = mountLinkedBoard, ...props }: WorkspaceProps & {
+export function App({ onSessionInvalid, mountAccount, ...props }: WorkspaceProps & {
   onSessionInvalid: () => void
-  mountAccount?: typeof mountLinkedBoard
+  mountAccount?: MountAccountBoard
 }) {
-  const account = props.session?.user
+  const { account } = props
   const ready = useWorkspaceStore((state) => state.boardOrder.length > 0)
   const status = useLinkedBoard((state) => state.status)
   const syncError = useLinkedBoard((state) => state.message)
@@ -65,15 +65,23 @@ export function App({ onSessionInvalid, mountAccount = mountLinkedBoard, ...prop
   const [deviceRetry, setDeviceRetry] = useState(0)
 
   useLayoutEffect(() => {
-    if (account) return mountAccount(account, onSessionInvalid)
+    if (account) return mountAccount?.(account, onSessionInvalid)
     let cancelled = false
     void restoreSourceProtection().then(() => {
       if (!cancelled) workspace.openLocalBoards()
     }, () => {
       if (!cancelled) setDeviceError('WALLFLOW couldn’t check browser recovery storage. Retry to open your boards.')
     })
+    const refreshProtection = (event: StorageEvent) => {
+      if (event.key !== null && !event.key.startsWith(BOARD_LINK_PREFIX)) return
+      void restoreSourceProtection().then(() => {
+        if (!cancelled) workspace.revealLocalBoards()
+      }).catch(() => {})
+    }
+    window.addEventListener('storage', refreshProtection)
     return () => {
       cancelled = true
+      window.removeEventListener('storage', refreshProtection)
       workspace.closeLocalBoards()
     }
   }, [account?.id, mountAccount, onSessionInvalid, deviceRetry])
@@ -89,7 +97,7 @@ export function App({ onSessionInvalid, mountAccount = mountLinkedBoard, ...prop
   return <AuthLoading opening />
 }
 
-function BoardWorkspace({ session, onSignIn, onSignOut, onRetrySession }: WorkspaceProps) {
+function BoardWorkspace({ account, onSignIn, onSignOut }: WorkspaceProps) {
   useKeyboardShortcuts()
   useLocalDay()
   useReminderScheduler()
@@ -133,7 +141,7 @@ function BoardWorkspace({ session, onSignIn, onSignOut, onRetrySession }: Worksp
     </footer>
     {note && <NoteEditor key={note.id} note={note} anchor={editorAnchor} registerAnchor={registerEditor} />}
     {searchOpen && <SearchDialog />}
-    {settingsOpen && <SettingsDialog session={session} onSignIn={onSignIn} onSignOut={onSignOut} onRetrySession={onRetrySession} />}
+    {settingsOpen && <SettingsDialog account={account} onSignIn={onSignIn} onSignOut={onSignOut} />}
     {helpOpen && <HelpDialog />}
   </main>
 }

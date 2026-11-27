@@ -1,5 +1,4 @@
 export const supabasePublicVariables = [
-  'VITE_WALLFLOW_SUPABASE_PREVIEW',
   'VITE_SUPABASE_URL',
   'VITE_SUPABASE_PUBLISHABLE_KEY',
 ] as const

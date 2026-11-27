@@ -1,5 +1,5 @@
 \set ON_ERROR_STOP on
-begin;
+begin transaction read only;
 select '1..4';
 
 do $$

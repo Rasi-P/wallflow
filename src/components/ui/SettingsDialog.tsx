@@ -1,20 +1,18 @@
 import { useState } from 'react'
 import { Check, Compass, LogOut } from 'lucide-react'
-import type { ActiveSession } from '../../auth/session'
+import type { Account } from '../../types/auth'
 import { useWallStore } from '../../stores/wallStore'
 import { Modal } from './Modal'
 import { AppearanceSettings } from './AppearanceSettings'
 import { useLinkedBoard } from '../../stores/linkedBoard'
 
-export function SettingsDialog({ session, onSignIn, onSignOut, onRetrySession }: {
-  session?: ActiveSession
+export function SettingsDialog({ account, onSignIn, onSignOut }: {
+  account?: Account
   onSignIn?: () => void
-  onSignOut: () => void
-  onRetrySession: () => void
+  onSignOut?: () => void
 }) {
   const syncStatus = useLinkedBoard((s) => s.status)
   const linked = useLinkedBoard((s) => s.linked)
-  const supabase = useLinkedBoard((s) => s.supabase)
   const unsavedAccountChanges = ['saving', 'unsaved', 'conflict', 'offline'].includes(syncStatus)
   const wallName = useWallStore((s) => s.wallName)
   const showHints = useWallStore((s) => s.showHints)
@@ -32,28 +30,22 @@ export function SettingsDialog({ session, onSignIn, onSignOut, onRetrySession }:
           setWallName(name)
           startTutorial()
         }}><Compass size={16} /> Start walkthrough</button>
-        {session && <section className="settings-account" aria-label="Google account">
+        {account && <section className="settings-account" aria-label="Google account">
           <h3>Google account</h3>
-          <p>{session.user.email ?? session.user.displayName ?? 'Signed in with Google'}</p>
+          <p>{account.email ?? account.displayName ?? 'Signed in with Google'}</p>
           <p className="local-note">{linked ? 'This board is saved to your account.' : 'Browser-only boards can be imported after sign-in.'}</p>
-          {session.recheckError && <>
-            <p className="settings-account-error" role="status">{session.recheckError}</p>
-            <button type="button" className="text-button" onClick={onRetrySession}>Retry session check</button>
-          </>}
-          {session.logoutError && <p className="settings-account-error" role="alert">{session.logoutError}</p>}
           {confirmSignOut && <p>{unsavedAccountChanges
-            ? supabase ? 'Sign out of WALLFLOW? Drafts saved on this device will be available when you sign back into this account.'
-              : 'Sign out of WALLFLOW? Unsaved account changes in this tab will be cleared.'
+            ? 'Sign out of WALLFLOW? Drafts saved on this device will be available when you sign back into this account.'
             : 'Sign out of WALLFLOW? Your saved boards will still be available.'}</p>}
           <div className="settings-account-actions">
-            <button type="button" className="text-button" aria-expanded={confirmSignOut} disabled={session.signingOut}
+            <button type="button" className="text-button" aria-expanded={confirmSignOut}
               onClick={() => setConfirmSignOut(!confirmSignOut)}>{confirmSignOut ? 'Cancel' : <><LogOut size={16} /> Sign out</>}</button>
-            {confirmSignOut && <button type="button" className="text-button" disabled={session.signingOut} onClick={onSignOut}>
-              <LogOut size={16} /> {session.signingOut ? 'Signing out…' : 'Confirm sign-out'}
+            {confirmSignOut && <button type="button" className="text-button" onClick={onSignOut}>
+              <LogOut size={16} /> Confirm sign-out
             </button>}
           </div>
         </section>}
-        {!session && onSignIn && <section className="settings-account" aria-label="Google account">
+        {!account && onSignIn && <section className="settings-account" aria-label="Google account">
           <h3>Google account</h3>
           <button type="button" className="text-button" onClick={onSignIn}>Sign in to open your account workspace</button>
         </section>}

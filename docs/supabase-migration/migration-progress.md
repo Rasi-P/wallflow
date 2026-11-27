@@ -6,7 +6,7 @@
 - Owner-scoped RLS, session eligibility checks, and an atomic and repeatable workspace initializer.
 - Centralized, opt-in Supabase client with PKCE and optional Vite placeholders.
 - Test coverage for client configuration, ownership constraints, row isolation, anonymous access, and direct-write denial.
-- The current application continues to use the existing Django login, APIs, and workspaces.
+- At Milestone 1 the application used the existing Django login, APIs, and workspaces.
 
 All 193 frontend tests, TypeScript checks, and the Vite build passed at the foundation milestone. Both migrations and all six SQL test groups ran in disposable PostgreSQL 17 using synthetic Auth tables, claims, and API roles.
 
@@ -28,8 +28,20 @@ All 193 frontend tests, TypeScript checks, and the Vite build passed at the foun
 
 ## Milestone 4
 
-The local staging rehearsal and security verification are recorded in the [Milestone 4 report](staging-rehearsal.md). Production cutover is **NO-GO** pending hosted OAuth, physical-device evidence, and operational recovery and rollout sign-off.
+The local staging rehearsal and security verification are recorded in the [Milestone 4 report](../../legacy/django/docs/staging-rehearsal.md). Production cutover is **NO-GO** pending hosted OAuth, physical-device evidence, and operational recovery and rollout sign-off.
 
 ## Milestone 5
 
-The [backend parity runbook](backend-parity.md) covers Quick Capture, the read-only Django exporter, receipt-aware import and the disposable rehearsal. Django still handles the default app. Hosted application and legacy browser-marker reconciliation are separate approval gates.
+The [backend parity runbook](../../legacy/django/docs/backend-parity.md) covers Quick Capture, the read-only Django exporter, receipt-aware import and the disposable rehearsal. Django handled the default app during Milestone 5. Hosted application and legacy browser-marker reconciliation are separate approval gates.
+
+## Supabase-only frontend
+
+The ordinary development and production build select Supabase. The former backend and data tools are isolated under [legacy/django](../../legacy/django/README.md). Browser and account recovery, external-client verification, and production data disposition remain separate operational gates. See [recovery and cutover](recovery-and-cutover.md).
+
+## Retirement verification
+
+Supabase is the sole active backend. Backup restore validates ownership and checks the reviewed cloud revision before queuing a replacement. The older import and rehearsal runbooks are archived with the compatibility service.
+
+Local Linux Node 24.22.0 passed clean install, TypeScript, 171 frontend tests, the ordinary production build, and the nine-asset scan. A fresh local Supabase database applied the nine unchanged migrations and passed the read-only catalog check, 20 SQL assertions, and two Data API tests including Chromium, Realtime, offline and cross-origin recovery, and Quick Capture. The isolated legacy rehearsal verified eight synthetic exported accounts, receipt-aware retries and quarantine, 54 Django regression tests, and a restore with matching checksums across 17 application tables.
+
+Hosted migration history, dashboard settings, live Google OAuth, physical phone acceptance, production account migration, old-origin service availability, and external-client sign-off remain operator gates. See the [staging checks](vercel-staging.md) and [retirement procedure](recovery-and-cutover.md).

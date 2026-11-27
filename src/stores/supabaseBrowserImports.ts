@@ -1,7 +1,8 @@
 import type { createSupabaseWorkspaceCommands } from '../auth/supabaseWorkspaceCommands.ts'
-import type { LinkedDocument } from '../auth/linkedWallApi.ts'
-import type { Board } from '../types/workspace.ts'
+import type { Board, LinkedDocument } from '../types/workspace.ts'
 import { lockSource, protectSource, readSource, recordSource, releaseSource, restoreSourceProtection } from '../utils/boardLinkStorage'
+import { browserExportFormat, reviewBrowserSource } from '../utils/browserRecovery'
+import type { BrowserExportBoard } from '../utils/browserRecovery'
 import { downloadSnapshot } from './linkedBoard'
 import { workspace } from './wallStore'
 
@@ -64,6 +65,30 @@ export function createSupabaseBrowserImports(
     }
   }
 
+  async function commitReviewed(
+    base: LinkedDocument,
+    reviewed: Awaited<ReturnType<typeof reviewBrowserSource>>[],
+    protect?: () => Promise<void>,
+  ) {
+    const verifyAccount = () => {
+      if (stopped()) throw new Error('Sign in again to finish importing these boards.')
+    }
+    verifyAccount()
+    try {
+      const intents = await api.prepare(reviewed.map(({ sourceId, snapshotDigest }) => ({ sourceId, snapshotDigest })))
+      verifyAccount()
+      await protect?.()
+      verifyAccount()
+      return await api.confirm(crypto.randomUUID(), base.revision, reviewed.map(({ snapshot }, index) => ({ intentId: intents[index], snapshot })))
+    } catch (error) {
+      if (!stopped()) {
+        const saved = await api.read().catch(() => undefined)
+        if (saved && reviewed.every(({ sourceId }) => saved.claimedSources.includes(sourceId))) return saved
+      }
+      throw error
+    }
+  }
+
   async function confirm(base: LinkedDocument, boards: Board[]) {
     if (!boards.length || new Set(boards.map(({ id }) => id)).size !== boards.length) {
       throw new Error('Choose the browser boards to import.')
@@ -84,23 +109,12 @@ export function createSupabaseBrowserImports(
       if (boards.some(({ id }) => !workspace.keepLocalSnapshot(id))) {
         throw new Error('The browser originals could not be kept. The import was cancelled.')
       }
-      const reviewed = await Promise.all(boards.map(async (board) => {
-        const snapshot = JSON.stringify(board)
-        const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(snapshot))
-        const snapshotDigest = Array.from(new Uint8Array(hash), (byte) => byte.toString(16).padStart(2, '0')).join('')
-        return { boardId: board.id, sourceId: sources.get(board.id)!, snapshot, snapshotDigest }
-      }))
-      const intents = await api.prepare(reviewed.map(({ sourceId, snapshotDigest }) => ({ sourceId, snapshotDigest })))
-      verifyReview()
-      for (const { boardId, sourceId } of reviewed) await protectSource(boardId, { sourceId, phase: 'pending', accountId: accountKey })
-      verifyReview()
-      try {
-        return await api.confirm(crypto.randomUUID(), base.revision, reviewed.map(({ snapshot }, index) => ({ intentId: intents[index], snapshot })))
-      } catch (error) {
-        const saved = await api.read().catch(() => undefined)
-        if (saved && reviewed.every(({ sourceId }) => saved.claimedSources.includes(sourceId))) return saved
-        throw error
-      }
+      const reviewed = await Promise.all(boards.map((board) => reviewBrowserSource({ board, sourceId: sources.get(board.id)! })))
+      return commitReviewed(base, reviewed, async () => {
+        verifyReview()
+        for (const { id } of boards) await protectSource(id, { sourceId: sources.get(id)!, phase: 'pending', accountId: accountKey })
+        verifyReview()
+      })
     }
 
     function next(index: number): Promise<LinkedDocument> {
@@ -123,12 +137,46 @@ export function createSupabaseBrowserImports(
     }
   }
 
+  async function confirmExport(base: LinkedDocument, entries: BrowserExportBoard[]) {
+    if (!entries.length) throw new Error('Choose the browser boards to import.')
+    if (active || stopped()) throw new Error('Wait for browser recovery to finish and try again.')
+    active = true
+    try {
+      const reviewed = await Promise.all(entries.map(reviewBrowserSource))
+      if (stopped()) throw new Error('Sign in again to import this file.')
+      const alreadyClaimed = reviewed.filter(({ sourceId }) => base.claimedSources.includes(sourceId))
+      if (alreadyClaimed.length === reviewed.length) return base
+      if (alreadyClaimed.length) throw new Error('Some boards in this file were already imported. Review the remaining boards separately.')
+      return await commitReviewed(base, reviewed)
+    } finally {
+      active = false
+      publishSources()
+    }
+  }
+
   return {
-    setClaimed, recover, confirm,
+    setClaimed, recover, confirm, confirmExport,
     download() {
       const boards = workspace.localIds().filter((id) => claimed.has(readSource(id)?.sourceId ?? ''))
         .flatMap((id) => workspace.recoverySnapshot(id) ?? [])
       if (boards.length) downloadSnapshot(boards, 'wallflow-browser-recovery.json')
     },
   }
+}
+
+export async function exportBrowserBoards() {
+  await restoreSourceProtection()
+  const boards = workspace.importableBoards()
+  if (!boards.length) throw new Error('There are no saved browser boards available to export.')
+
+  const entries: BrowserExportBoard[] = []
+  for (const board of boards) {
+    await lockSource(board.id, async (source) => {
+      if (source.phase !== 'local' || !workspace.matchesStoredSnapshot(board) || !workspace.keepLocalSnapshot(board.id)) {
+        throw new Error('A browser board changed or is protected. Reload this origin and review the saved boards.')
+      }
+      entries.push({ sourceId: source.sourceId, board })
+    })
+  }
+  downloadSnapshot({ format: browserExportFormat, boards: entries }, 'wallflow-browser-export.json')
 }

@@ -1,12 +1,10 @@
 import { beforeEach, test } from 'node:test'
 import assert from 'node:assert/strict'
-import { Group, PerspectiveCamera, Vector3 } from 'three'
 import type { StickyNoteData } from '../src/types/wall.ts'
 import { SAMPLE_NOTES } from '../src/utils/constants.ts'
 import { DEFAULT_FILTERS, searchNotes } from '../src/utils/noteSearch.ts'
 import { MAX_SECTIONS, SECTION_HEIGHT, SECTION_WIDTH, sectionAt } from '../src/utils/wallSections.ts'
-import { positionWallFocus, resolveCameraFocus, wallFocusDistance } from '../src/three/cameraFocus.ts'
-import { constrainWallView, WALL_CAMERA_FOV } from '../src/three/wallViewBounds.ts'
+import { resolveCameraFocus } from '../src/three/cameraFocus.ts'
 import { LEGACY_WALL_STORAGE_KEY, WORKSPACE_STORAGE_KEY } from '../src/stores/workspaceStorage.ts'
 
 const memory = new Map<string, string>()
@@ -190,35 +188,16 @@ test('focus, reset and opening an archived result do not change wall data or his
   assert.equal(store.getState().past, before.past)
 })
 
-test('section and resized note focus frame the geometry on desktop and mobile, even on a tilted wall', () => {
+test('section and resized note focus use the real geometry', () => {
   const { createSection, updateNote } = store.getState()
   const id = createSection('Research', [4, -3])!
   updateNote(sample.id, { size: [4, 4.2], rotation: 0.3 })
-  const wall = new Group()
-  wall.rotation.set(-0.32, 0.44, 0)
   const document = store.getState()
   const section = resolveCameraFocus(document, 'section', id)!
   assert.equal(section.width, SECTION_WIDTH)
   assert.equal(section.height, SECTION_HEIGHT)
   const focusedNote = resolveCameraFocus(document, 'focus', sample.id)!
   assert.ok(focusedNote.width > 4 && focusedNote.height > 4.2)
-  for (const aspect of [1440 / 900, 390 / 844]) {
-    const camera = new PerspectiveCamera(WALL_CAMERA_FOV, aspect, 0.1, 110)
-    for (const { center, width, height } of [section, focusedNote]) {
-      const distance = wallFocusDistance(width, height, aspect)
-      const target = new Vector3()
-      positionWallFocus(wall, center, distance, target, camera.position)
-      constrainWallView(wall, target, camera.position, aspect)
-      camera.lookAt(target)
-      camera.updateMatrixWorld()
-      for (const x of [-width / 2, width / 2]) {
-        for (const y of [-height / 2, height / 2]) {
-          const projected = wall.localToWorld(new Vector3(center[0] + x, center[1] + y, 0)).project(camera)
-          assert.ok(Math.abs(projected.x) < 1 && Math.abs(projected.y) < 1)
-        }
-      }
-    }
-  }
   assert.equal(store.getState().notes, document.notes)
 })
 

@@ -1,6 +1,6 @@
 # Google Auth setup and account mapping
 
-Django serves the default app. The opt-in Supabase preview implements Google PKCE and explicit callback handling. A separate Supabase development project and its own Google OAuth client are required for live Google verification.
+WALLFLOW uses Supabase Auth with Google PKCE and explicit callback handling. Use a separate Supabase development project and Google OAuth client for live staging tests.
 
 ## Provider and callbacks
 
@@ -31,11 +31,11 @@ redirect_uri = "http://127.0.0.1:55321/auth/v1/callback"
 3. Verify the signed-in identity and workspace eligibility before showing account data. Use SDK session persistence and token refresh with account-scoped auth events. Expired sessions require reauthentication. Support simultaneous sessions on phone and laptop.
 4. Resolve pending edits before explicit sign-out when possible. On sign-out, session expiry, or an account-change signal, stop writes, reminders, and subscriptions, conceal the previous workspace, and scope any saved recovery payload to the verified previous owner.
 
-The SQL read gate checks the session row and a 14-day maximum age. Supabase’s configurable time-box applies at refresh and requires an eligible plan. The preview uses SDK-managed browser credentials. Decide whether to retain that credential model or add an HttpOnly session layer before production rollout.
+The SQL read gate checks the session row and a 14-day maximum age. Supabase’s configurable time-box applies at refresh and requires an eligible plan. The app uses SDK-managed browser credentials. Decide whether to retain that credential model or add an HttpOnly session layer before production rollout.
 
 ## Approve a development test account
 
-1. Enable the mode and flag described in [local development](local-development.md), sign in once with your development test Google account, and record its Auth user UUID from the development dashboard.
+1. Use the development project from [local development](local-development.md), sign in once with your development test Google account, and record its Auth user UUID from the development dashboard.
 2. In that same development project's SQL editor, inspect the managed identity's provider and subject. Confirm that the candidate has exactly one identity and that its Google `provider_id` and identity `sub` agree. Approve a new synthetic test account with the operator function.
 
 ```sql
@@ -53,7 +53,7 @@ select wallflow_private.reconcile_google_account(
 
 ## Existing users
 
-The private reconciliation function compares Django’s recorded Google `sub` with the single trusted Google identity in `auth.identities`. It records the original Django user UUID and the verified Supabase owner UUID. Duplicate mappings, other providers, misleading user metadata, mismatched subjects, and disabled legacy accounts cannot claim a workspace. Any already recorded match stays outside the preview until a separately approved migration imports and reconciles its data. Use synthetic legacy mappings for development tests.
+The private reconciliation function compares Django’s recorded Google `sub` with the single trusted Google identity in `auth.identities`. It records the original Django user UUID and the verified Supabase owner UUID. Duplicate mappings, other providers, misleading user metadata, mismatched subjects, and disabled legacy accounts cannot claim a workspace. Any already recorded match stays ineligible for cloud workspace access until a separately approved migration imports and reconciles its data. Use synthetic legacy mappings for development tests.
 
 - [Supabase Google provider](https://supabase.com/docs/guides/auth/social-sign-in/auth-google)
 - [Auth redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls)

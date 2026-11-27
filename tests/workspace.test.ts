@@ -5,6 +5,7 @@ import { FIRST_BOARD_ID, LEGACY_WALL_STORAGE_KEY, WORKSPACE_STORAGE_KEY } from '
 import type { Board, SavedWorkspace } from '../src/types/workspace.ts'
 import type { StickyNoteData, WallDocument } from '../src/types/wall.ts'
 import { SAMPLE_NOTES } from '../src/utils/constants.ts'
+import { BOARD_LINK_PREFIX, isProtectedSource, needsLinkRecovery, readSource, recordSource, restoreSourceProtection } from '../src/utils/boardLinkStorage.ts'
 import { photoPaperColors } from '../src/utils/photoWorkspaces.ts'
 import { deliverWorkspaceReminders } from '../src/utils/reminders.ts'
 import type { ReminderNotifications } from '../src/utils/reminders.ts'
@@ -33,7 +34,7 @@ const legacy = JSON.stringify({
   state: { ...document, ...preferences, ...presentation, wallName: 'Original wall', notifiedReminders: [note.reminder!.id] },
 }, null, 2)
 
-function device(legacyValue?: string) {
+function device(legacyValue?: string, isRecoveryCopy?: (id: string) => boolean, localInitiallyOpen = true) {
   const data = new Map<string, string>()
   if (legacyValue !== undefined) data.set(LEGACY_WALL_STORAGE_KEY, legacyValue)
   const health = { available: true, readsBlocked: false, writesBlocked: false }
@@ -49,7 +50,7 @@ function device(legacyValue?: string) {
       data.set(key, value)
     },
   }
-  const open = () => createWorkspaceStore(storage, (available) => { health.available = available })
+  const open = () => createWorkspaceStore(storage, (available) => { health.available = available }, isRecoveryCopy, localInitiallyOpen)
   const read = (): SavedWorkspace => JSON.parse(data.get(WORKSPACE_STORAGE_KEY)!)
   return { data, health, writes, open, read }
 }
@@ -494,4 +495,158 @@ test('a stale tab cannot replace a workspace saved by another tab', () => {
   assert.equal(stale.wall.getState().wallName, 'Stale tab edit')
   assert.equal(read().boards[FIRST_BOARD_ID].name, 'Original wall')
   assert.equal(read().boards[second].name, 'From the first tab')
+})
+
+test('linked board changes never enter local storage and clearing the account removes linked data', () => {
+  const { open, data } = device(legacy)
+  const raw = () => data.get(WORKSPACE_STORAGE_KEY)
+  const workspace = open()
+  const localId = workspace.getState().activeBoardId
+  const initial = workspace.getState().boards[localId]
+  const original = raw()
+  const accountBoard = {
+    ...initial, id: 'account:test-wall',
+    document: { ...initial.document, notes: [{ ...initial.document.notes[0], id: 'remote-note', title: 'Private account note' }] },
+  }
+  const changes: string[] = []
+  workspace.setCloudWorkspace({ version: 2, activeBoardId: accountBoard.id, boardOrder: [accountBoard.id], boards: { [accountBoard.id]: accountBoard } },
+    (saved) => changes.push(saved.boards[accountBoard.id].name))
+  assert.equal(workspace.getState().activeBoardId, accountBoard.id)
+  assert.equal(workspace.wall.getState().notes[0].id, 'remote-note')
+  assert.equal(raw(), original)
+  workspace.renameBoard(accountBoard.id, 'Private name')
+  assert.deepEqual(changes, ['Private name'])
+  assert.deepEqual(workspace.getState().boardOrder, [accountBoard.id])
+  const cloudSecond = workspace.createBoard('Cloud second')!
+  assert.equal(workspace.switchBoard(cloudSecond), true)
+  assert.equal(workspace.deleteBoard(cloudSecond), true)
+  assert.deepEqual(workspace.getState().boardOrder, [accountBoard.id])
+  assert.equal(workspace.switchBoard(localId), false)
+  assert.ok(workspace.importableBoards().some((board) => board.id === localId))
+  assert.equal(data.get(WORKSPACE_STORAGE_KEY)?.includes('Private account note'), false)
+  assert.equal(data.get(WORKSPACE_STORAGE_KEY)?.includes('Private name'), false)
+  assert.equal(workspace.deleteBoard(accountBoard.id), false)
+  workspace.clearLinkedBoard()
+  assert.deepEqual(workspace.getState().boardOrder, [])
+  assert.equal(workspace.wall.getState().notes.some((note) => note.id === 'remote-note'), false)
+  workspace.openLocalBoards()
+  assert.deepEqual(workspace.getState().boardOrder, [localId])
+  assert.deepEqual(workspace.getState().boards[localId], initial)
+})
+
+test('a connected source is hidden across workspace sessions and retained as a recovery copy', () => {
+  const hidden = new Set<string>()
+  const { open, read } = device(legacy, (id) => hidden.has(id))
+  const first = open()
+  const snapshot = first.importableBoards().find((board) => board.id === FIRST_BOARD_ID)
+  assert.ok(snapshot)
+  const another = first.createBoard('Independent board')
+  assert.ok(another)
+  hidden.add(FIRST_BOARD_ID)
+  first.revealLocalBoards()
+  assert.deepEqual(first.getState().boardOrder, [another])
+  assert.equal(first.switchBoard(FIRST_BOARD_ID), false)
+  assert.equal(first.importableBoards().find((board) => board.id === FIRST_BOARD_ID), undefined)
+  assert.deepEqual(first.recoverySnapshot(FIRST_BOARD_ID), snapshot)
+  assert.deepEqual(read().boards[FIRST_BOARD_ID], snapshot)
+  assert.deepEqual(open().getState().boardOrder, [another])
+})
+
+test('an interrupted source stays hidden after reload and on a different account while its exact snapshot is kept', (t) => {
+  const { data, open, read } = device(legacy, isProtectedSource)
+  const originalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage')
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    value: { getItem: (key: string) => data.get(key) ?? null, setItem: (key: string, value: string) => data.set(key, value) },
+  })
+  t.after(() => {
+    if (originalStorage) Object.defineProperty(globalThis, 'localStorage', originalStorage)
+    else Reflect.deleteProperty(globalThis, 'localStorage')
+  })
+  const sourceId = 'a8cd665a-f8ed-490a-98af-aea116748f14'
+  const markerKey = BOARD_LINK_PREFIX + FIRST_BOARD_ID
+  const first = open()
+  const second = first.createBoard('Independent board')!
+  const staleTab = open()
+  const workspaceBytes = data.get(WORKSPACE_STORAGE_KEY)
+  const snapshot = first.importableBoards().find((board) => board.id === FIRST_BOARD_ID)
+  data.set(markerKey, JSON.stringify({ sourceId, phase: 'local' }))
+  assert.equal(isProtectedSource(FIRST_BOARD_ID), false)
+  assert.ok(recordSource(FIRST_BOARD_ID, { sourceId, phase: 'pending', accountId: 'account-a' }))
+  assert.equal(staleTab.deleteBoard(FIRST_BOARD_ID), false)
+  assert.equal(staleTab.renameBoard(FIRST_BOARD_ID, 'Stale tab rename'), false)
+  assert.equal(staleTab.switchBoard(FIRST_BOARD_ID), false)
+  assert.equal(needsLinkRecovery(readSource(FIRST_BOARD_ID), 'account-b'), false)
+  assert.equal(needsLinkRecovery(readSource(FIRST_BOARD_ID), 'account-a'), true)
+  assert.deepEqual(open().getState().boardOrder, [second])
+  assert.equal(data.get(WORKSPACE_STORAGE_KEY), workspaceBytes)
+  assert.deepEqual(read().boards[FIRST_BOARD_ID], snapshot)
+  // Legacy ambiguous records also stay hidden until the server resolves them.
+  data.set(markerKey, JSON.stringify({ sourceId }))
+  assert.equal(needsLinkRecovery(readSource(FIRST_BOARD_ID), 'account-b'), true)
+  assert.deepEqual(open().getState().boardOrder, [second])
+  assert.ok(recordSource(FIRST_BOARD_ID, { sourceId, phase: 'linked' }))
+  assert.deepEqual(open().getState().boardOrder, [second])
+  assert.deepEqual(read().boards[FIRST_BOARD_ID], snapshot)
+})
+
+test('a durable marker keeps the source hidden when the browser lost the local-storage mirror', async (t) => {
+  const { data, open, read } = device(legacy, isProtectedSource)
+  const other = open().createBoard('Independent board')
+  const sourceId = '54f03189-0888-49e9-9d39-d3d33d49e562'
+  const pending = { sourceId, phase: 'pending', accountId: 'account-a' } as const
+  let entries = [{ boardId: FIRST_BOARD_ID, ...pending }]
+  function success<T>(result: T) {
+    const request: { result: T; onsuccess?: () => void } = { result }
+    queueMicrotask(() => request.onsuccess?.())
+    return request
+  }
+  const browserGlobals = {
+    localStorage: { getItem: (key: string) => data.get(key) ?? null },
+    indexedDB: {
+      open: () => success({
+        transaction: () => ({ objectStore: () => ({ getAll: () => success(entries) }) }),
+        close() {},
+      }),
+    },
+  }
+  for (const [key, value] of Object.entries(browserGlobals)) {
+    const previous = Object.getOwnPropertyDescriptor(globalThis, key)
+    Object.defineProperty(globalThis, key, { configurable: true, value })
+    t.after(() => {
+      if (previous) Object.defineProperty(globalThis, key, previous)
+      else Reflect.deleteProperty(globalThis, key)
+    })
+  }
+  try {
+    await restoreSourceProtection()
+    assert.equal(data.has(BOARD_LINK_PREFIX + FIRST_BOARD_ID), false)
+    assert.deepEqual(readSource(FIRST_BOARD_ID), pending)
+    assert.deepEqual(open().getState().boardOrder, [other])
+    assert.deepEqual(read().boards[FIRST_BOARD_ID].document, document)
+  } finally {
+    entries = []
+    await restoreSourceProtection()
+  }
+})
+
+test('initial account lookup never exposes or migrates local boards before the server answers', () => {
+  const { data, open, writes } = device(legacy, undefined, false)
+  const workspace = open()
+  assert.deepEqual(workspace.getState().boardOrder, [])
+  assert.deepEqual(writes, [])
+  assert.equal(workspace.createBoard('Early local board'), undefined)
+
+  const accountBoard: Board = { id: 'account:shared-wall', name: 'Cloud', document, preferences, presentation, notifiedReminders: [] }
+  workspace.setCloudWorkspace({ version: 2, activeBoardId: accountBoard.id, boardOrder: [accountBoard.id], boards: { [accountBoard.id]: accountBoard } }, () => {})
+  assert.deepEqual(workspace.getState().boards, { [accountBoard.id]: accountBoard })
+  assert.equal(data.get(LEGACY_WALL_STORAGE_KEY), legacy)
+  assert.equal(data.has(WORKSPACE_STORAGE_KEY), false)
+  assert.deepEqual(writes, [])
+
+  workspace.clearLinkedBoard()
+  assert.deepEqual(workspace.getState().boards, {})
+  workspace.openLocalBoards()
+  assert.deepEqual(workspace.getState().boardOrder, [FIRST_BOARD_ID])
+  assert.deepEqual(writes, [WORKSPACE_STORAGE_KEY])
 })

@@ -6,6 +6,7 @@ from .api import health
 urlpatterns = [
     path("api/v1/health/", health, name="health"),
     path("api/v1/auth/", include("accounts.urls")),
+    path("api/v1/", include("walls.urls")),
 ]
 handler500 = "config.api.server_error"
 

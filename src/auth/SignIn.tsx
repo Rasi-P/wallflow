@@ -10,10 +10,13 @@ export function AuthLoading({ opening = false }: { opening?: boolean }) {
   </main>
 }
 
-export function SignIn({ state, onContinue, onRetry }: {
+export function SignIn({ state, onContinue, onRetry, onUseDevice, onExit, exitLabel }: {
   state: SignInState
   onContinue: () => void
   onRetry: () => void
+  onUseDevice?: () => void
+  onExit?: () => void
+  exitLabel?: string
 }) {
   const canSignIn = state.status === 'anonymous'
   const starting = canSignIn && state.starting
@@ -31,7 +34,9 @@ export function SignIn({ state, onContinue, onRetry }: {
             : <><span>Retry session check</span><RefreshCw size={16} aria-hidden="true" /></>}
         </button>
         {starting && <span className="auth-sr-only" role="status">Opening Google sign-in</span>}
-        <p className="sign-in-local">Your wall stays in this browser. Anyone who signs in here can open it.</p>
+        {onExit && <button type="button" className="text-button" onClick={onExit}>{exitLabel}</button>}
+        {onUseDevice && <button type="button" className="text-button" disabled={starting} onClick={onUseDevice}>Use this browser only</button>}
+        <p className="sign-in-local">Sign in to open your account workspace on any device.</p>
       </div>
       <div className="sign-in-preview" aria-hidden="true">
         <div className="sign-in-paper sign-in-paper-yellow" />

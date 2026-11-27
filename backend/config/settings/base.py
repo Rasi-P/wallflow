@@ -88,6 +88,12 @@ X_FRAME_OPTIONS = "DENY"
 
 
 def database(*, production):
+    options = {
+        "connect_timeout": 5,
+        "sslmode": env.str("POSTGRES_SSLMODE", default="verify-full" if production else "disable"),
+    }
+    if root_certificate := env.str("POSTGRES_SSLROOTCERT", default=""):
+        options["sslrootcert"] = root_certificate
     return {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": env.str("POSTGRES_DB", default="wallflow"),
@@ -95,10 +101,7 @@ def database(*, production):
         "PASSWORD": env.str("POSTGRES_PASSWORD", default=""),
         "HOST": env.str("POSTGRES_HOST", default="127.0.0.1"),
         "PORT": env.int("POSTGRES_PORT", default=5432),
-        "OPTIONS": {
-            "connect_timeout": 5,
-            "sslmode": env.str("POSTGRES_SSLMODE", default="verify-full" if production else "disable"),
-        },
+        "OPTIONS": options,
     }
 
 

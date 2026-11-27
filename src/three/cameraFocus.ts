@@ -2,13 +2,15 @@ import { MathUtils, Vector3 } from 'three'
 import type { Object3D } from 'three'
 import type { Point2, WallDocument } from '../types/wall.ts'
 import { getNoteSize } from '../utils/noteDimensions.ts'
-import { SECTION_HEIGHT, SECTION_WIDTH } from '../utils/wallSections.ts'
+import { getSectionSize } from '../utils/wallSections.ts'
 import { MAX_CAMERA_DISTANCE, WALL_CAMERA_FOV } from './wallViewBounds.ts'
 
 export function resolveCameraFocus(document: WallDocument, kind: 'focus' | 'section', id?: string) {
   if (kind === 'section') {
     const section = document.sections.find((entry) => entry.id === id)
-    return section && { center: section.position, width: SECTION_WIDTH, height: SECTION_HEIGHT }
+    if (!section) return
+    const [width, height] = getSectionSize(section)
+    return { center: section.position, width, height }
   }
   const note = document.notes.find((entry) => entry.id === id && !entry.archived)
   if (!note) return

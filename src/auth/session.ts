@@ -6,6 +6,7 @@ const VERIFY_FAILED = 'We couldn’t check your session. Check your connection a
 const START_FAILED = 'We couldn’t start Google sign-in. Check your connection and try again.'
 const LOGOUT_FAILED = 'Sign-out couldn’t be confirmed. Please try again.'
 export const SESSION_RECHECK_MS = 5 * 60_000
+const SESSION_RETRY_MS = 30_000
 
 const loginMessages = new Map([
   ['denied', 'Google sign-in was cancelled. You can try again whenever you’re ready.'],
@@ -20,7 +21,14 @@ export function loginNotice(search: string) {
   return reason ? loginMessages.get(reason) : undefined
 }
 
-export type ActiveSession = { status: 'authenticated'; user: Account; signingOut: boolean; logoutError?: string }
+export type ActiveSession = {
+  status: 'authenticated'
+  user: Account
+  signingOut: boolean
+  logoutError?: string
+  recheckError?: string
+  verifyingAccountChange?: boolean
+}
 
 export type AuthState =
   | { status: 'checking' }
@@ -53,13 +61,19 @@ export function createAuthSession(api: ReturnType<typeof createAuthApi>, submit:
       else setState({ status: 'anonymous', starting: false, notice: previous.status === 'authenticated' ? SESSION_LOST : returnNotice })
       returnNotice = undefined
     }).catch(() => {
-      if (version === generation) setState({ status: 'error', notice: VERIFY_FAILED })
+      if (version !== generation) return
+      lastChecked = Date.now()
+      if (previous.status === 'authenticated') setState({ ...previous, recheckError: VERIFY_FAILED })
+      else setState({ status: 'error', notice: VERIFY_FAILED })
     }).finally(() => { check = undefined })
     return check
   }
 
   function refresh(maxAge = SESSION_RECHECK_MS) {
-    if (store.getState().status === 'authenticated' && Date.now() - lastChecked >= maxAge) return verify()
+    const current = store.getState()
+    if (current.status !== 'authenticated') return
+    const age = current.recheckError ? Math.min(maxAge, SESSION_RETRY_MS) : maxAge
+    if (Date.now() - lastChecked >= age) return verify()
   }
 
   function verifyOnReturn() {
@@ -67,6 +81,16 @@ export function createAuthSession(api: ReturnType<typeof createAuthApi>, submit:
     if (state.status === 'authenticated') return verify()
     setState({ status: 'checking' })
     return verify()
+  }
+
+  function verifyAfterAccountChange() {
+    const state = store.getState()
+    if (state.status !== 'authenticated' || state.signingOut) return
+    if (state.verifyingAccountChange) return verify()
+    generation++
+    const pending = check
+    setState({ ...state, verifyingAccountChange: true, recheckError: undefined })
+    return pending ? pending.then(verify) : verify()
   }
 
   function retry() {
@@ -100,5 +124,5 @@ export function createAuthSession(api: ReturnType<typeof createAuthApi>, submit:
     }
   }
 
-  return { store, verify, refresh, verifyOnReturn, retry, beginLogin, signOut }
+  return { store, verify, refresh, verifyOnReturn, verifyAfterAccountChange, retry, beginLogin, signOut }
 }

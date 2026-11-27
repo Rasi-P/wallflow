@@ -8,7 +8,7 @@ import type { BoardId } from '../../types/workspace'
 export function BoardNavigation() {
   const activeId = useWorkspaceStore((state) => state.activeBoardId)
   const order = useWorkspaceStore((state) => state.boardOrder)
-  const name = useWorkspaceStore((state) => state.boards[state.activeBoardId].name)
+  const name = useWorkspaceStore((state) => state.boards[state.activeBoardId]?.name)
   const dragging = useWallStore((state) => state.draggingId !== null)
   const [managedId, setManagedId] = useState<BoardId | null>(null)
   const managedName = useWorkspaceStore((state) => managedId === null ? undefined : state.boards[managedId]?.name)

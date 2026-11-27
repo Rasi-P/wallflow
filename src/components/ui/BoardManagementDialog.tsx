@@ -8,6 +8,7 @@ import { Modal } from './Modal'
 import { getNoteSize } from '../../utils/noteDimensions'
 import {
   importBrowserBoards, exportBrowserRecovery, exportLinkedChanges, loadSavedLinkedBoard, retryLinkedBoard, useLinkedBoard,
+  exportAccountWorkspace, keepLinkedDraft, restoreAccountWorkspace,
 } from '../../stores/linkedBoard'
 
 type Screen = 'manage' | 'create' | 'rename' | 'delete' | 'session-only' | 'import'
@@ -35,6 +36,7 @@ export function BoardManagementDialog({ boardId, boardName, canDelete, onClose }
   const hasRecovery = useLinkedBoard((s) => s.hasRecovery)
   const recoveryPending = useLinkedBoard((s) => s.recoveryPending)
   const status = useLinkedBoard((s) => s.status)
+  const supabase = useLinkedBoard((s) => s.supabase)
   const accountMessage = useLinkedBoard((s) => s.message)
   const linked = workspace.isLinked(boardId)
   const content = useRef<HTMLDivElement>(null)
@@ -101,6 +103,17 @@ export function BoardManagementDialog({ boardId, boardName, canDelete, onClose }
       : 'WALLFLOW couldn’t update browser storage. Your board and its contents are still here.')
   }
 
+  async function restoreBackup(file: File) {
+    if (!window.confirm('Replace this account workspace with the selected backup? Export the current workspace first if you want to keep a copy.')) return
+    try {
+      if (file.size > 7_000_000) throw new Error('The workspace backup is too large.')
+      await restoreAccountWorkspace(await file.text())
+      onClose()
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : 'The workspace backup could not be restored.')
+    }
+  }
+
   return <Modal title={titles[screen]} onClose={() => { if (!connecting) onClose() }} className="board-management-dialog">
     <div ref={content}>
       {screen === 'manage' && <>
@@ -114,13 +127,25 @@ export function BoardManagementDialog({ boardId, boardName, canDelete, onClose }
         {!canDelete && <p className="board-management-hint">Keep at least one board in your workspace.</p>}
         {linked && <p className="board-management-hint">Saved to {account?.email ?? account?.displayName ?? 'your Google account'}.</p>}
         {linked && accountMessage && <p className="board-management-error" role="alert">{accountMessage}</p>}
+        {linked && supabase && <div className="board-management-options">
+          <button type="button" className="text-button" onClick={exportAccountWorkspace}>Export account workspace</button>
+          <label>Restore workspace backup <input type="file" accept="application/json,.json"
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0]
+              event.currentTarget.value = ''
+              if (file) void restoreBackup(file)
+            }} /></label>
+        </div>}
         {linked && (status === 'unsaved' || status === 'conflict') && <button type="button" className="text-button" onClick={exportLinkedChanges}>Download unsaved changes</button>}
-        {linked && (status === 'unsaved' || status === 'unavailable') && <button type="button" className="text-button" onClick={() => void retryLinkedBoard()}>
+        {linked && (status === 'unsaved' || status === 'unavailable' || status === 'offline') && <button type="button" className="text-button" onClick={() => void retryLinkedBoard()}>
           {status === 'unsaved' ? 'Retry save' : 'Retry sync'}
         </button>}
         {linked && status === 'conflict' && <button type="button" className="text-button" onClick={() => {
           if (window.confirm('Load the saved account board and discard unsaved changes in this tab?')) void loadSavedLinkedBoard()
         }}>Load saved board</button>}
+        {linked && supabase && status === 'conflict' && <button type="button" className="text-button" onClick={() => {
+          if (window.confirm('Use your draft for conflicting edits and keep the other nonconflicting changes?')) keepLinkedDraft()
+        }}>Keep my conflicting edits</button>}
         {recoveryPending && <>
           <p className="board-management-hint" role="status">A board connection is waiting for verification. Its browser recovery copy is protected.</p>
           <button type="button" className="text-button" onClick={() => void retryLinkedBoard()}>Retry connection check</button>

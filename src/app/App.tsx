@@ -53,7 +53,10 @@ type WorkspaceProps = {
   onRetrySession: () => void
 }
 
-export function App({ onSessionInvalid, ...props }: WorkspaceProps & { onSessionInvalid: () => void }) {
+export function App({ onSessionInvalid, mountAccount = mountLinkedBoard, ...props }: WorkspaceProps & {
+  onSessionInvalid: () => void
+  mountAccount?: typeof mountLinkedBoard
+}) {
   const account = props.session?.user
   const ready = useWorkspaceStore((state) => state.boardOrder.length > 0)
   const status = useLinkedBoard((state) => state.status)
@@ -62,7 +65,7 @@ export function App({ onSessionInvalid, ...props }: WorkspaceProps & { onSession
   const [deviceRetry, setDeviceRetry] = useState(0)
 
   useLayoutEffect(() => {
-    if (account) return mountLinkedBoard(account, onSessionInvalid)
+    if (account) return mountAccount(account, onSessionInvalid)
     let cancelled = false
     void restoreSourceProtection().then(() => {
       if (!cancelled) workspace.openLocalBoards()
@@ -73,7 +76,7 @@ export function App({ onSessionInvalid, ...props }: WorkspaceProps & { onSession
       cancelled = true
       workspace.closeLocalBoards()
     }
-  }, [account?.id, onSessionInvalid, deviceRetry])
+  }, [account?.id, mountAccount, onSessionInvalid, deviceRetry])
 
   if (ready) return <BoardWorkspace {...props} />
   const notice = account ? status === 'unavailable' && syncError : deviceError

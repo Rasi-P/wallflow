@@ -14,7 +14,8 @@ export function SettingsDialog({ session, onSignIn, onSignOut, onRetrySession }:
 }) {
   const syncStatus = useLinkedBoard((s) => s.status)
   const linked = useLinkedBoard((s) => s.linked)
-  const unsavedAccountChanges = ['saving', 'unsaved', 'conflict'].includes(syncStatus)
+  const supabase = useLinkedBoard((s) => s.supabase)
+  const unsavedAccountChanges = ['saving', 'unsaved', 'conflict', 'offline'].includes(syncStatus)
   const wallName = useWallStore((s) => s.wallName)
   const showHints = useWallStore((s) => s.showHints)
   const [name, setName] = useState(wallName)
@@ -41,7 +42,8 @@ export function SettingsDialog({ session, onSignIn, onSignOut, onRetrySession }:
           </>}
           {session.logoutError && <p className="settings-account-error" role="alert">{session.logoutError}</p>}
           {confirmSignOut && <p>{unsavedAccountChanges
-            ? 'Sign out of WALLFLOW? Unsaved account changes in this tab will be cleared.'
+            ? supabase ? 'Sign out of WALLFLOW? Drafts saved on this device will be available when you sign back into this account.'
+              : 'Sign out of WALLFLOW? Unsaved account changes in this tab will be cleared.'
             : 'Sign out of WALLFLOW? Your saved boards will still be available.'}</p>}
           <div className="settings-account-actions">
             <button type="button" className="text-button" aria-expanded={confirmSignOut} disabled={session.signingOut}

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    { "source": "/", "destination": "/index.html" },
+    { "source": "/sign-in", "destination": "/index.html" },
+    { "source": "/auth/callback", "destination": "/index.html" },
+    { "source": "/app", "destination": "/index.html" },
+    { "source": "/app/", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/auth/callback",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store" },
+        { "key": "Referrer-Policy", "value": "no-referrer" }
+      ]
+    }
+  ]
+}

@@ -35,7 +35,7 @@ function readLegacy(raw: string | null) {
   return board && singleBoard(board)
 }
 
-function readWorkspace(raw: string): SavedWorkspace | undefined {
+export function readWorkspace(raw: string): SavedWorkspace | undefined {
   const saved = parse(raw)
   if (!isRecord(saved) || saved.version !== 2 || !isRecord(saved.boards) || !Array.isArray(saved.boardOrder)) return undefined
   const seen = new Set<string>()

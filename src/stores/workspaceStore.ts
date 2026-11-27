@@ -238,6 +238,21 @@ export function createWorkspaceStore(
       for (const id of saved.boardOrder) addSession(saved.boards[id], true)
       publish()
     },
+    updateCloudWorkspace(saved: SavedWorkspace) {
+      if (!linked) return
+      const previous = linked.saved
+      const device = activeStore().getState()
+      for (const id of accountSessions.keys()) {
+        if (stableJson(previous.boards[id]) !== stableJson(saved.boards[id])) removeSession(id, accountSessions)
+      }
+      linked.saved = saved
+      for (const id of saved.boardOrder) if (!accountSessions.has(id)) addSession(saved.boards[id], true)
+      const active = accountSessions.get(saved.activeBoardId)?.store
+      if (active) active.setState({
+        today: device.today, reminderPermission: device.reminderPermission, zoomPercent: device.zoomPercent, zoomBounds: device.zoomBounds,
+      })
+      publish()
+    },
     clearLinkedBoard() {
       if (!linked) return
       for (const id of accountSessions.keys()) removeSession(id, accountSessions)

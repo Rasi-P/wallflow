@@ -584,6 +584,18 @@ kbd { border: 1px solid #dde4d2; padding: 0 4px; border-radius: 3px; margin-left
 @media (max-width: 1050px) {
   .save-status.is-error { display: flex; margin-right: 2px; }
   .save-status.is-error > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .app-header .save-status--supabase {
+    display: flex;
+    position: absolute;
+    top: 100%;
+    right: max(16px, var(--wall-safe-right));
+    margin: 0;
+    padding: 3px 8px;
+    border-radius: 9px;
+    background: #fdfbf6ee;
+    pointer-events: none;
+  }
+  .app-header .save-status--supabase > span { position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
 }
 @media (pointer: coarse) {
   .board-navigation .icon-button { width: 44px; height: 44px; }

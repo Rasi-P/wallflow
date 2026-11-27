@@ -6,7 +6,7 @@ import type { Group } from 'three'
 import { useWallStore } from '../../stores/wallStore'
 import { createContactShadow } from '../../three/textures'
 import { createPaperGeometry, PAPER_SHAPE_COUNT, paperShapeForId } from '../../three/paperGeometry'
-import { noteLayerDepth } from '../../three/noteLayers'
+import { photoNoteLayerDepth } from '../../three/noteLayers'
 import { CONTACT_SHADOW_OPACITY } from '../../three/paperMotion'
 import type { PaperMotionFrame } from '../../three/paperMotion'
 import { createBakedNoteSurface, keepColorEmoji } from '../../three/noteSurface'
@@ -32,6 +32,7 @@ export function Wall({ group, prototypeSurface, phone, studyOpening, workspace }
   const today = useWallStore((s) => s.filters.due === 'any' ? '' : s.today)
   const editingId = useWallStore((s) => studyOpening || hasWallFilters(s.filters) ? s.editingId : null)
   const selectedId = useWallStore((s) => studyOpening ? s.selectedId : null)
+  const foregroundId = useWallStore((s) => s.editingId ?? s.draggingId ?? s.selectedId)
   const visibleNotes = useMemo(() => {
     const filtered = hasWallFilters(filters)
       ? notes.filter((note) => note.id === editingId || matchesFilters(note, filters, today))
@@ -70,7 +71,7 @@ export function Wall({ group, prototypeSurface, phone, studyOpening, workspace }
       {notes.map((note, index) => {
         const shape = paperShapeForId(note.id)
         const isClip = workspace !== 'professor' && shape === 0
-        return <StickyNote key={note.id} note={note} visible={visibleIds.has(note.id)} depth={noteLayerDepth(index)} paperGeometry={paperShapes[shape]}
+        return <StickyNote key={note.id} note={note} visible={visibleIds.has(note.id)} depth={photoNoteLayerDepth(index, note.id === foregroundId)} paperGeometry={paperShapes[shape]}
           contactGeometry={contactGeometry} contactMaterial={contactMaterial} paperMotions={paperMotions} bindSurface={bindSurface}
           phone={phone} largerInk={phone && workspace !== 'professor'}
           attachmentGeometry={attachments.geometry} attachmentMaterial={attachments.materials[isClip ? 2 : shape - 1]}

@@ -229,7 +229,7 @@ export const StickyNote = memo(function StickyNote({ note, visible, depth, paper
         onDoubleClick={(e) => { if (useWallStore.getState().mode === 'select') { e.stopPropagation(); useWallStore.getState().editNote(note.id) } }}
         onPointerOver={(e) => { if (useWallStore.getState().mode === 'select') { e.stopPropagation(); gl.domElement.style.cursor = 'grab' } }}
         onPointerOut={() => { if (!drag.current) gl.domElement.style.cursor = '' }}>
-        <meshStandardMaterial ref={material} roughness={0.97} side={DoubleSide} />
+        <meshStandardMaterial ref={material} roughness={0.97} side={DoubleSide} opacity={1} transparent={false} depthTest depthWrite />
         {attachmentMaterial && <mesh position={[attachmentKind === 'tape' ? -0.16 : attachmentKind === 'clip' ? 0.89 : 0.04, NOTE_HEIGHT / 2 - 0.04, 0.00065]}
           rotation={[0, 0, attachmentKind === 'tape' ? 0.035 : attachmentKind === 'clip' ? -0.17 : 0]}
           geometry={attachmentGeometry} material={attachmentMaterial} raycast={ignoreRaycast} />}

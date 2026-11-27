@@ -1,7 +1,7 @@
 import type { Point2, WallDocument } from '../types/wall.ts'
 import { WALL_HEIGHT, WALL_WIDTH } from '../utils/constants.ts'
 import { getNoteSize } from '../utils/noteDimensions.ts'
-import { SECTION_HEIGHT, SECTION_WIDTH } from '../utils/wallSections.ts'
+import { getSectionSize } from '../utils/wallSections.ts'
 
 export type WallFrameInsets = { left: number; right: number; top: number; bottom: number }
 
@@ -19,7 +19,7 @@ export function wallContentBounds(document: WallDocument) {
     const cos = Math.abs(Math.cos(note.rotation)), sin = Math.abs(Math.sin(note.rotation))
     include(note.position, cos * wide + sin * tall, sin * wide + cos * tall)
   }
-  for (const section of document.sections) include(section.position, SECTION_WIDTH, SECTION_HEIGHT)
+  for (const section of document.sections) include(section.position, ...getSectionSize(section))
 
   const hasContent = leftmost !== Infinity
   const content: Point2 = hasContent ? [(leftmost + rightmost) / 2, (lowest + highest) / 2] : [0, 0]

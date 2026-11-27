@@ -16,7 +16,7 @@ from rest_framework.response import Response
 from config.api import error_payload
 from .cloud_documents import legacy_board, save_workspace, source_claimed
 from .documents import (
-    InvalidDocument, MAX_ACTIVE_NOTES, NOTE_HEIGHT, NOTE_WIDTH, SCHEMA_VERSION,
+    InvalidDocument, MAX_ACTIVE_NOTES, NOTE_HEIGHT, NOTE_WIDTH, SCHEMA_VERSION, SECTION_HEIGHT, SECTION_WIDTH,
     fields, text, validate_board, write_board,
 )
 from .models import CaptureReceipt, ImportedBoardSource, Wall, WallDocument, WallLinkIntent
@@ -277,7 +277,12 @@ def capture_note(board, body):
     if prefs["typography"] != "handwritten":
         note["typography"] = prefs["typography"]
     x, y = position
-    containing = [section for section in board["document"]["sections"] if abs(x - section["position"][0]) <= 3.7 and abs(y - section["position"][1]) <= 2.8]
+    containing = []
+    for section in board["document"]["sections"]:
+        width, height = section.get("size", (SECTION_WIDTH, SECTION_HEIGHT))
+        sx, sy = section["position"]
+        if abs(x - sx) <= width / 2 and abs(y - sy) <= height / 2:
+            containing.append(section)
     if containing:
         note["sectionId"] = min(containing, key=lambda section: (x - section["position"][0]) ** 2 + (y - section["position"][1]) ** 2)["id"]
     return note

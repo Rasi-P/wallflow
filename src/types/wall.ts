@@ -68,6 +68,7 @@ export interface WallSection {
   id: string
   name: string
   position: Point2
+  size?: Point2
 }
 
 export interface WallDocument {

@@ -1,7 +1,7 @@
 import type { Point2, StickyNoteData, WallDocument, WallSection } from '../types/wall.ts'
 import { NOTE_WIDTH, WALL_HEIGHT, WALL_WIDTH } from '../utils/constants.ts'
+import { getSectionSize } from '../utils/wallSections.ts'
 import { getNoteSize } from '../utils/noteDimensions.ts'
-import { SECTION_HEIGHT, SECTION_WIDTH } from '../utils/wallSections.ts'
 import { wallContentBounds } from './photoWallFrame.ts'
 import type { WallFrameInsets } from './photoWallFrame.ts'
 
@@ -39,7 +39,7 @@ export function studyNoteFitsOpening(note: StickyNoteData, opening: StudyOpening
 }
 
 export function studySectionFitsOpening(section: WallSection, opening: StudyOpening) {
-  return contains(opening, rectangle(section.position, SECTION_WIDTH, SECTION_HEIGHT))
+  return contains(opening, rectangle(section.position, ...getSectionSize(section)))
 }
 
 function candidateCentres(papers: Paper[], low: 'left' | 'bottom', high: 'right' | 'top', span: number) {

@@ -5,7 +5,7 @@ import { clampNotePosition, getNoteSize, normalizeNoteSize } from '../utils/note
 import { changeChecklist, countActiveNotes, hasTaskDetails, isPriority, restoreTaskFields } from '../utils/noteTasks.ts'
 import type { ChecklistChange } from '../utils/noteTasks.ts'
 import { isDueDate, localDay } from '../utils/taskDates.ts'
-import { adjustSectionMembership, clampSectionPosition, MAX_SECTIONS, MAX_SECTION_NAME, placeSection, sectionAt, withSection } from '../utils/wallSections.ts'
+import { adjustSectionMembership, clampSectionPosition, getSectionSize, MAX_SECTIONS, MAX_SECTION_NAME, normalizeSectionSize, placeSection, SECTION_HEIGHT, SECTION_WIDTH, sectionAt, withSection } from '../utils/wallSections.ts'
 import { DEFAULT_FILTERS, matchesFilters } from '../utils/noteSearch.ts'
 import type { WallFilters } from '../utils/noteSearch.ts'
 import { isReminderTime, readReminder } from '../utils/reminders.ts'
@@ -35,6 +35,7 @@ export interface WallStore extends WallDocument {
   past: WallDocument[]
   future: WallDocument[]
   selectedId: string | null
+  selectedSectionId: string | null
   editingId: string | null
   editSession: EditSession | null
   showTaskDetails: boolean
@@ -54,6 +55,7 @@ export interface WallStore extends WallDocument {
   zoomBounds: Point2
   cameraCommand: { kind: CameraKind; value?: number; targetId?: string; nonce: number } | null
   select: (id: string | null) => void
+  selectSection: (id: string) => void
   setMode: (mode: InteractionMode) => void
   setDragging: (id: string | null, fromTouch?: boolean) => void
   addNote: () => void
@@ -73,9 +75,10 @@ export interface WallStore extends WallDocument {
   archiveNote: (id: string) => void
   restoreNote: (id: string) => void
   permanentlyDeleteNote: (id: string) => void
-  createSection: (name: string, position?: Point2) => string | undefined
+  createSection: (name: string, position?: Point2, size?: Point2) => string | undefined
   renameSection: (id: string, name: string) => void
   moveSection: (id: string, position: Point2) => void
+  resizeSection: (id: string, size: Point2, position?: Point2) => void
   deleteSection: (id: string) => void
   assignSection: (id: string, sectionId?: string) => void
   setFilters: (filters: WallFilters) => void
@@ -199,7 +202,8 @@ function restoreSections(saved: unknown): WallSection[] {
     if (!isRecord(section)) continue
     const { id, name, position } = section
     if (typeof id !== 'string' || !id || ids.has(id) || typeof name !== 'string' || !name.trim() || !isPoint(position)) continue
-    sections.push({ id, name: name.trim().slice(0, MAX_SECTION_NAME), position: clampSectionPosition(position) })
+    const size = isPoint(section.size) ? normalizeSectionSize(section.size) : undefined
+    sections.push({ id, name: name.trim().slice(0, MAX_SECTION_NAME), position: clampSectionPosition(position, size), ...(size && { size }) })
     ids.add(id)
     if (sections.length >= MAX_SECTIONS) break
   }
@@ -284,16 +288,18 @@ export function createBoardStore({ board, blank = false, visibleSlots = () => []
     notes: blank ? [] : structuredClone(SAMPLE_NOTES), sections: [], wallRotation: [0, 0], wallName: 'My everyday wall', lighting: 'daylight', showHints: true,
     onboardingComplete: blank, tutorial: null,
     appearance: { ...DEFAULT_APPEARANCE }, noteDefaults: { ...DEFAULT_NOTE_PREFERENCES },
-    past: [], future: [], selectedId: null, editingId: null, editSession: null, showTaskDetails: false, draggingId: null, draggingFromTouch: false,
+    past: [], future: [], selectedId: null, selectedSectionId: null, editingId: null, editSession: null, showTaskDetails: false, draggingId: null, draggingFromTouch: false,
     mode: 'select', searchOpen: false, settingsOpen: false, helpOpen: false, tasksOpen: false, today: localDay(),
     archiveFocusId: null, filters: DEFAULT_FILTERS,
     reminderPermission: 'unavailable', notifiedReminders: [],
     zoomPercent: 100, zoomBounds: [32, 292], cameraCommand: null,
     select: (id) => set((state) => {
       const note = state.notes.find((entry) => entry.id === id && !entry.archived)
-      return { selectedId: note?.id ?? null }
+      return { selectedId: note?.id ?? null, selectedSectionId: null }
     }),
-    setMode: (mode) => { get().finishEditing(); set({ mode, selectedId: null }) },
+    selectSection: (id) => set((state) => state.sections.some((section) => section.id === id)
+      ? { selectedId: null, selectedSectionId: id } : state),
+    setMode: (mode) => { get().finishEditing(); set({ mode, selectedId: null, selectedSectionId: null }) },
     setDragging: (draggingId, fromTouch = false) => set({ draggingId, draggingFromTouch: draggingId !== null && fromTouch }),
     addNote: () => {
       const state = get()
@@ -311,7 +317,7 @@ export function createBoardStore({ board, blank = false, visibleSlots = () => []
       if (noteDefaults.typography !== 'handwritten') note.typography = noteDefaults.typography
       const placed = withSection(note, sectionAt(state.sections, note.position))
       const filters = matchesFilters(placed, state.filters, state.today) ? state.filters : DEFAULT_FILTERS
-      set({ ...checkpoint(state), notes: [...state.notes, placed], selectedId: note.id, editingId: note.id, filters,
+      set({ ...checkpoint(state), notes: [...state.notes, placed], selectedId: note.id, selectedSectionId: null, editingId: note.id, filters,
         editSession: { kind: 'new', past: state.past, future: state.future }, showTaskDetails: false, mode: 'select' })
     },
     updateNote: (id, patch) => {
@@ -492,14 +498,16 @@ export function createBoardStore({ board, blank = false, visibleSlots = () => []
         }
       })
     },
-    createSection: (name, position) => {
+    createSection: (name, position, size) => {
       const nextName = name.trim().slice(0, MAX_SECTION_NAME)
       const state = get()
       if (!nextName || state.sections.length >= MAX_SECTIONS || state.draggingId) return
       state.finishEditing()
+      const area = isPoint(size) ? normalizeSectionSize(size) : undefined
       const section: WallSection = {
         id: crypto.randomUUID(), name: nextName,
-        position: isPoint(position) ? clampSectionPosition(position) : placeSection(state.sections, visibleSlots()),
+        position: isPoint(position) ? clampSectionPosition(position, area) : placeSection(state.sections, visibleSlots(), area),
+        ...(area && (area[0] !== SECTION_WIDTH || area[1] !== SECTION_HEIGHT) && { size: area }),
       }
       set((current) => {
         const sections = [...current.sections, section]
@@ -524,9 +532,28 @@ export function createBoardStore({ board, blank = false, visibleSlots = () => []
       set((state) => {
         if (state.draggingId && state.draggingId !== id) return state
         const before = state.sections.find((entry) => entry.id === id)
-        const nextPosition = clampSectionPosition(position)
-        if (!before || (before.position[0] === nextPosition[0] && before.position[1] === nextPosition[1])) return state
+        if (!before) return state
+        const nextPosition = clampSectionPosition(position, getSectionSize(before))
+        if (before.position[0] === nextPosition[0] && before.position[1] === nextPosition[1]) return state
         const next = { ...before, position: nextPosition }
+        const sections = state.sections.map((entry) => entry === before ? next : entry)
+        const notes = adjustSectionMembership(state.notes, sections, next, before)
+        return { ...checkpoint(state), sections, notes, selectedId: matchingSelection(state, notes) }
+      })
+    },
+    resizeSection: (id, size, position) => {
+      if (!isPoint(size)) return
+      get().finishEditing()
+      set((state) => {
+        if (state.draggingId && state.draggingId !== id) return state
+        const before = state.sections.find((entry) => entry.id === id)
+        if (!before) return state
+        const bounded = normalizeSectionSize(size)
+        const nextPosition = clampSectionPosition(isPoint(position) ? position : before.position, bounded)
+        const [width, height] = getSectionSize(before)
+        if (width === bounded[0] && height === bounded[1] &&
+          before.position[0] === nextPosition[0] && before.position[1] === nextPosition[1]) return state
+        const next = { ...before, position: nextPosition, size: bounded }
         const sections = state.sections.map((entry) => entry === before ? next : entry)
         const notes = adjustSectionMembership(state.notes, sections, next, before)
         return { ...checkpoint(state), sections, notes, selectedId: matchingSelection(state, notes) }
@@ -540,7 +567,8 @@ export function createBoardStore({ board, blank = false, visibleSlots = () => []
         if (sections.length === state.sections.length) return state
         const notes = state.notes.map((note) => note.sectionId === id ? withSection(note) : note)
         const filters = filtersForSections(state.filters, sections)
-        return { ...checkpoint(state), sections, notes, filters, selectedId: matchingSelection(state, notes, filters) }
+        return { ...checkpoint(state), sections, notes, filters, selectedId: matchingSelection(state, notes, filters),
+          selectedSectionId: state.selectedSectionId === id ? null : state.selectedSectionId }
       })
     },
     assignSection: (id, sectionId) => {
@@ -567,7 +595,7 @@ export function createBoardStore({ board, blank = false, visibleSlots = () => []
     focusSection: (id) => {
       const state = get()
       if (state.draggingId || !state.sections.some((section) => section.id === id)) return
-      state.select(null)
+      state.selectSection(id)
       state.commandCamera('section', undefined, id)
     },
     openArchivedNote: (id) => {
@@ -591,13 +619,13 @@ export function createBoardStore({ board, blank = false, visibleSlots = () => []
       if (state.draggingId || state.editingId) return state
       const previous = state.past.at(-1)
       if (!previous) return state
-      return { ...previous, filters: filtersForSections(state.filters, previous.sections), past: state.past.slice(0, -1), future: [documentOf(state), ...state.future], selectedId: null, editingId: null, draggingId: null }
+      return { ...previous, filters: filtersForSections(state.filters, previous.sections), past: state.past.slice(0, -1), future: [documentOf(state), ...state.future], selectedId: null, selectedSectionId: null, editingId: null, draggingId: null }
     }),
     redo: () => set((state) => {
       if (state.draggingId || state.editingId) return state
       const next = state.future[0]
       if (!next) return state
-      return { ...next, filters: filtersForSections(state.filters, next.sections), past: [...state.past, documentOf(state)], future: state.future.slice(1), selectedId: null, editingId: null, draggingId: null }
+      return { ...next, filters: filtersForSections(state.filters, next.sections), past: [...state.past, documentOf(state)], future: state.future.slice(1), selectedId: null, selectedSectionId: null, editingId: null, draggingId: null }
     }),
     setWallName: (wallName) => set({ wallName: wallName.trim().slice(0, MAX_BOARD_NAME_LENGTH) || 'My everyday wall' }),
     setLighting: (lighting) => set({ lighting }),

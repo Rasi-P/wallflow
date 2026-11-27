@@ -121,7 +121,7 @@ export function createWorkspaceStore(
     if (store.getState().draggingId) return false
     store.getState().finishEditing()
     store.setState({
-      selectedId: null, filters: DEFAULT_FILTERS, mode: 'select', cameraCommand: null,
+      selectedId: null, selectedSectionId: null, filters: DEFAULT_FILTERS, mode: 'select', cameraCommand: null,
       searchOpen: false, settingsOpen: false, helpOpen: false, tasksOpen: false,
       archiveFocusId: null, tutorial: null,
     })

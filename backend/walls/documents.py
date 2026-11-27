@@ -8,6 +8,7 @@ from .models import CHOICES
 SCHEMA_VERSION = 1
 MAX_ACTIVE_NOTES = 60
 NOTE_WIDTH, NOTE_HEIGHT = 2.62, 2.78
+SECTION_WIDTH, SECTION_HEIGHT = 7.4, 5.6
 
 
 class InvalidDocument(ValueError):
@@ -165,12 +166,14 @@ def validate_board(board):
     section_ids = set()
     for index, section in enumerate(array(document["sections"], "document.sections", 24)):
         path = f"sections[{index}]"
-        fields(section, ("id", "name", "position"), path)
+        fields(section, ("id", "name", "position"), path, ("size",))
         unique(section["id"], section_ids, f"{path}.id")
         text(section["name"], f"{path}.name", 40, nonempty=True)
         require(section["name"] == section["name"].strip(), f"{path}.name")
         x, y = pair(section["position"], f"{path}.position")
-        require(abs(x) <= 12.15 + 1e-9 and abs(y) <= 8.05 + 1e-9, f"{path}.position")
+        width, height = pair(section.get("size", [SECTION_WIDTH, SECTION_HEIGHT]), f"{path}.size")
+        require(2 <= width <= 31.7 and 1.6 <= height <= 21.7, f"{path}.size")
+        require(abs(x) <= (32 - width) / 2 - .15 + 1e-9 and abs(y) <= (22 - height) / 2 - .15 + 1e-9, f"{path}.position")
     ids, reminders = set(), set()
     active = 0
     for index, note in enumerate(array(document["notes"], "document.notes")):

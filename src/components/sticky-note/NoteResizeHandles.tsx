@@ -7,6 +7,7 @@ import { useWallStore } from '../../stores/wallStore'
 import type { Point2, StickyNoteData } from '../../types/wall'
 import { NOTE_HEIGHT, NOTE_WIDTH } from '../../utils/constants'
 import { getNoteSize, resizeFromCorner } from '../../utils/noteDimensions'
+import { NOTE_HANDLE_OFFSET } from '../../three/noteLayers'
 import { projectOnWall } from '../../three/noteProjection'
 import { captureNotePointer, watchNotePointer } from '../../three/notePointer'
 
@@ -30,7 +31,7 @@ export function NoteResizeHandles({ note, object, footprint, depth }: {
   const gl = useThree((state) => state.gl)
   const invalidate = useThree((state) => state.invalidate)
   const resize = useRef<ResizeSession | null>(null)
-  const handleDepth = depth + 0.14
+  const handleDepth = depth + NOTE_HANDLE_OFFSET
 
   useLayoutEffect(() => () => {
     if (!resize.current) return

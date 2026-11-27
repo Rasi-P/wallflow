@@ -1,0 +1,50 @@
+name: wallflow-production
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+      target: api
+    env_file:
+      - ${WALLFLOW_RUNTIME_ENV_FILE:-.env.production}
+    environment:
+      TRUST_PROXY_HTTPS: "true"
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import os, urllib.parse, urllib.request;
+          host = urllib.parse.urlsplit(os.environ["WALLFLOW_ORIGIN"]).netloc;
+          request = urllib.request.Request("http://127.0.0.1:8000/api/v1/health/",
+          headers={"Host": host, "X-Forwarded-Proto": "https"});
+          urllib.request.urlopen(request, timeout=4).close()
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 20s
+
+  edge:
+    build:
+      context: .
+      dockerfile: Dockerfile.production
+      target: edge
+    environment:
+      WALLFLOW_ORIGIN: ${WALLFLOW_ORIGIN:?Set the public HTTPS origin}
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - edge_data:/data
+      - edge_config:/config
+    restart: unless-stopped
+
+volumes:
+  edge_data:
+  edge_config:

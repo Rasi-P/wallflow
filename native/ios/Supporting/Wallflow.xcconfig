@@ -1,0 +1,7 @@
+// The app and widget share these settings. Local overrides are ignored by Git.
+WALLFLOW_BUNDLE_ID = com.wallflow.capture
+WALLFLOW_APP_GROUP = group.com.wallflow.capture
+WALLFLOW_WEB_HOST = unconfigured.example
+WALLFLOW_SUPABASE_URL =
+WALLFLOW_SUPABASE_PUBLISHABLE_KEY =
+#include? "../Local.xcconfig"

@@ -1,0 +1,5 @@
+<resources>
+    <string name="widget_description">Open WALLFLOW Quick Capture</string>
+    <string name="quick_capture">Quick Capture</string>
+    <string name="widget_brand">WALLFLOW</string>
+</resources>

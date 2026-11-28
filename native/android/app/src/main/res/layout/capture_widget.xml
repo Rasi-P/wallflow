@@ -1,0 +1,17 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root" android:layout_width="match_parent" android:layout_height="match_parent"
+    android:background="@drawable/widget_background" android:gravity="center_vertical"
+    android:orientation="vertical" android:padding="13dp">
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:gravity="center_vertical" android:orientation="horizontal">
+        <ImageView android:layout_width="26dp" android:layout_height="26dp" android:src="@drawable/wallflow_icon"
+            android:importantForAccessibility="no" />
+        <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="7dp"
+            android:text="@string/widget_brand" android:textColor="#352A24" android:textSize="13sp" android:textStyle="bold" />
+    </LinearLayout>
+    <TextView android:id="@+id/widget_status" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:maxLines="1" android:ellipsize="end" android:textColor="#5C4A40" android:textSize="12sp" />
+    <TextView android:id="@+id/widget_capture" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:layout_marginTop="4dp" android:minHeight="44dp" android:gravity="center" android:background="@drawable/widget_action"
+        android:text="@string/quick_capture" android:textColor="#281612" android:textSize="14sp" android:textStyle="bold" />
+</LinearLayout>

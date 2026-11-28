@@ -23,6 +23,26 @@
     {
       "source": "/app/",
       "destination": "/index.html"
+    },
+    {
+      "source": "/capture",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/capture/native/android",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/capture/native/ios",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/auth/native/android/callback",
+      "destination": "/native-auth.html"
+    },
+    {
+      "source": "/auth/native/ios/callback",
+      "destination": "/native-auth.html"
     }
   ],
   "headers": [
@@ -36,6 +56,68 @@
         {
           "key": "Referrer-Policy",
           "value": "no-referrer"
+        }
+      ]
+    },
+    {
+      "source": "/auth/native/android/callback",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        }
+      ]
+    },
+    {
+      "source": "/auth/native/ios/callback",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        }
+      ]
+    },
+    {
+      "source": "/sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/manifest.webmanifest",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/manifest+json"
+        }
+      ]
+    },
+    {
+      "source": "/.well-known/assetlinks.json",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/json"
+        }
+      ]
+    },
+    {
+      "source": "/.well-known/apple-app-site-association",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/json"
         }
       ]
     }

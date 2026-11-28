@@ -21,10 +21,14 @@ npm run build
 npm run verify:build
 ```
 
-## Use your wall
+## Mobile and Home Screen
+
+The mobile web app offers a touch workspace and an installable PWA. The Android and iOS companions provide native Home Screen widgets that open a Quick Capture composer for the same Supabase workspace. Follow the [mobile setup, integration contract and device test checklist](docs/mobile-pwa-native.md).
+
+## Use your 3D wall
 
 - **First launch:** choose **Set up my wall** to pick an environment, paper color, and starter notes, or open a blank wall immediately. The optional eight-step tour highlights live controls. Dismissing or completing setup keeps the welcome off on future visits.
-- **Select (V):** drag a note in its wall plane. Double-click to edit. On mobile, tap a note and choose **Edit note**.
+- **Select (V):** drag a note in its wall plane. Double-click to edit.
 - **Pan (H):** drag the wall, right-drag with a mouse, or use two fingers on a touch screen.
 - **Orbit (O):** drag to move the camera around the wall.
 - **Zoom:** scroll, pinch with two fingers, or use the toolbar. **0** resets the camera.
@@ -42,7 +46,7 @@ npm run verify:build
 - **Settings:** the default Personal Study Room includes a recessed daylight window, oak desk, and bookshelf. Professor’s Study, Creative Studio, and Scientist’s Lab remain available as wall finishes. Adjust plaster shade, lighting tone and intensity, and ambience, or set the color, title lettering, size, and rotation for new notes. Appearance settings apply immediately. **Reset appearance and note defaults** keeps your wall name, hints, notes, and their placement.
 - **Help:** the bottom-right button or **?** opens the wall guide and keyboard shortcut reference. Start the walkthrough again from Help or Settings.
 
-After signing in with Google, WALLFLOW opens the wall saved on this browser. Anyone who signs in on the same browser origin can access that local data. On first load, WALLFLOW copies existing `wallflow-wall-v1` data into the first board in `wallflow-workspace-v2` and retains the original key as a backup. The workspace is independent of the Google account. Sign out under **Wall settings → Google account**. The header shows when storage is unavailable and current changes are available only for the session.
+Signing in opens the Supabase workspace tied to your Google account. **Use this browser only** opens local boards. WALLFLOW can migrate the older browser document and retains its original bytes for recovery. The Boards dialog includes account backup, restore and import tools.
 
 ## Architecture and deployment
 

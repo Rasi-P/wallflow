@@ -1,3 +1,4 @@
+import type { CaptureOperation, CaptureStorage } from './quickCapture.ts'
 import type { LinkedDocument, SavedWorkspace, WorkspaceCommand } from '../types/workspace.ts'
 
 export interface OutboxEntry {
@@ -16,24 +17,27 @@ export function workspaceOutboxKey(project: string, account: string) {
   return JSON.stringify([new URL(project).origin, account])
 }
 
-export function createWorkspaceOutbox(key: string, storage: IDBFactory | undefined = globalThis.indexedDB): WorkspaceOutbox {
-  async function open() {
-    if (!storage) throw new Error('Browser storage is unavailable.')
-    return new Promise<IDBDatabase>((resolve, reject) => {
-      const request = storage.open('wallflow-supabase-workspaces', 1)
-      request.onupgradeneeded = () => request.result.createObjectStore('outbox')
-      request.onerror = () => reject(request.error)
-      request.onblocked = () => {
-        request.onsuccess = () => request.result.close()
-        reject(new Error('Browser storage is blocked.'))
-      }
-      request.onsuccess = () => resolve(request.result)
-    })
-  }
+async function openOutbox(storage: IDBFactory | undefined, name: string, store: string) {
+  if (!storage) throw new Error('Browser storage is unavailable.')
+  return new Promise<IDBDatabase>((resolve, reject) => {
+    const request = storage.open(name, 1)
+    request.onupgradeneeded = () => request.result.createObjectStore(store)
+    request.onerror = () => reject(request.error)
+    request.onblocked = () => {
+      request.onsuccess = () => request.result.close()
+      reject(new Error('Browser storage is blocked.'))
+    }
+    request.onsuccess = () => {
+      request.result.onversionchange = () => request.result.close()
+      resolve(request.result)
+    }
+  })
+}
 
+export function createWorkspaceOutbox(key: string, storage: IDBFactory | undefined = globalThis.indexedDB): WorkspaceOutbox {
   return {
     async load() {
-      const db = await open()
+      const db = await openOutbox(storage, 'wallflow-supabase-workspaces', 'outbox')
       try {
         return await new Promise<OutboxEntry | undefined>((resolve, reject) => {
           const request = db.transaction('outbox').objectStore('outbox').get(key)
@@ -43,7 +47,7 @@ export function createWorkspaceOutbox(key: string, storage: IDBFactory | undefin
       } finally { db.close() }
     },
     async save(entry) {
-      const db = await open()
+      const db = await openOutbox(storage, 'wallflow-supabase-workspaces', 'outbox')
       try {
         await new Promise<void>((resolve, reject) => {
           const transaction = db.transaction('outbox', 'readwrite', { durability: 'strict' })
@@ -53,5 +57,25 @@ export function createWorkspaceOutbox(key: string, storage: IDBFactory | undefin
         })
       } finally { db.close() }
     },
+  }
+}
+
+export function createCaptureStorage(scope: string, storage = globalThis.indexedDB): CaptureStorage {
+  async function access<T>(mode: IDBTransactionMode, action: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+    const db = await openOutbox(storage, 'wallflow-supabase-captures', 'captures')
+    try {
+      return await new Promise<T>((resolve, reject) => {
+        const transaction = db.transaction('captures', mode, { durability: 'strict' })
+        transaction.onabort = () => reject(transaction.error ?? new Error('Capture storage is unavailable.'))
+        const request = action(transaction.objectStore('captures'))
+        transaction.oncomplete = () => resolve(request.result)
+      })
+    } finally { db.close() }
+  }
+
+  return {
+    list: () => access('readonly', (store) => store.getAll(IDBKeyRange.bound([scope], [scope, []]))) as Promise<CaptureOperation[]>,
+    async save(operation) { await access('readwrite', (store) => store.put(operation, [scope, operation.id])) },
+    async remove(id) { await access('readwrite', (store) => store.delete([scope, id])) },
   }
 }

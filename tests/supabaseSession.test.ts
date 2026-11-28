@@ -172,3 +172,33 @@ test('an authenticated but disabled account cannot see a workspace', async (t) =
   await app.session.signOut()
   assert.equal(app.session.store.getState().status, 'anonymous')
 })
+
+test('a cold offline session opens only the verified owner and rechecks workspace eligibility on reconnect', async (t) => {
+  let online = false
+  const prior = Object.getOwnPropertyDescriptor(navigator, 'onLine')
+  Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => online })
+  t.after(() => {
+    if (prior) Object.defineProperty(navigator, 'onLine', prior)
+    else Reflect.deleteProperty(navigator, 'onLine')
+  })
+  const app = fixture()
+  let expired = false
+  let forgotten = false
+  app.auth.forgetOfflineAccount = () => { forgotten = true }
+  app.auth.offlineAccount = async () => expired ? null : { id: 'owner-a', displayName: null, email: null }
+  t.after(app.session.connect())
+  await setImmediate()
+  assert.deepEqual(app.session.store.getState(), { status: 'ready', account: { id: 'owner-a', displayName: null, email: null } })
+  assert.deepEqual(app.opened, [])
+
+  expired = true
+  app.session.recheck()
+  await setImmediate()
+  assert.equal(app.session.store.getState().status, 'anonymous')
+  online = true
+  app.workspace.open = async () => { throw new SupabaseWorkspaceDenied() }
+  app.session.recheck()
+  await setImmediate()
+  assert.equal(app.session.store.getState().status, 'blocked')
+  assert.equal(forgotten, true)
+})

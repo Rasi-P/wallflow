@@ -65,9 +65,10 @@ export function createSupabaseWorkspaceCommands(client: SupabaseClient, ownerId:
         removed_boards: command.base.workspace.boardOrder.filter((id) => !Object.hasOwn(command.workspace.boards, id)),
       }))
     },
-    async quickCapture(operationId: string, content: string, boardId?: string): Promise<QuickCaptureResult> {
+    async quickCapture(operationId: string, content: string, boardId?: string, checklist?: string[]): Promise<QuickCaptureResult> {
       const value = await request('quick_capture_wallflow_note', {
         operation_id: operationId, content, board_id: boardId ?? null,
+        ...(checklist?.length ? { checklist } : {}),
       }) as Partial<QuickCaptureResult> | null
       if (!value || typeof value.noteId !== 'string' || typeof value.revision !== 'string' || !/^[0-9]+$/.test(value.revision)
         || (value.note !== null && value.note?.id !== value.noteId)) {

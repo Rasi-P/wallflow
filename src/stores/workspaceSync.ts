@@ -123,7 +123,7 @@ export function createWorkspaceSync(options: SyncOptions) {
     if (closed) return
     if (entry?.conflict) { publishConflict(); return }
     if (offline()) {
-      if (!storageError) publish(entry ? 'offline' : 'unavailable')
+      if (!storageError) publish(entry ? 'offline' : 'unavailable', entry ? undefined : 'Reconnect to download this workspace to the device.')
       return
     }
     if (busy) return

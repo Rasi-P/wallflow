@@ -1,5 +1,5 @@
 import { CircleHelp, FilterX, MousePointer2, Plus, ZoomIn, StickyNote as StickyNoteIcon } from 'lucide-react'
-import { lazy, Suspense, useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Header } from '../components/toolbar/Header'
 import { Toolbar } from '../components/toolbar/Toolbar'
 import { SearchDialog } from '../components/ui/SearchDialog'
@@ -23,6 +23,9 @@ import type { Account } from '../types/auth'
 import type { MountAccountBoard } from '../stores/linkedBoard'
 import { retryLinkedBoard, useLinkedBoard } from '../stores/linkedBoard'
 import { BOARD_LINK_PREFIX, restoreSourceProtection } from '../utils/boardLinkStorage'
+import { captureLinkPending, consumeCaptureLink, rememberCaptureLink } from '../pwa/captureLink'
+import { QuickCaptureDialog } from '../components/mobile/QuickCaptureDialog'
+import { MobileWorkspace } from '../components/mobile/MobileWorkspace'
 import { AuthLoading, SignIn } from '../auth/SignIn'
 
 const WallScene = lazy(() => import('../three/WallScene'))
@@ -97,10 +100,37 @@ export function App({ onSessionInvalid, mountAccount, ...props }: WorkspaceProps
   return <AuthLoading opening />
 }
 
-function BoardWorkspace({ account, onSignIn, onSignOut }: WorkspaceProps) {
-  useKeyboardShortcuts()
+const mobileLayout = matchMedia('(max-width: 767px), (max-width: 1023px) and (pointer: coarse)')
+const watchLayout = (notify: () => void) => {
+  mobileLayout.addEventListener('change', notify)
+  return () => mobileLayout.removeEventListener('change', notify)
+}
+
+function BoardWorkspace(props: WorkspaceProps) {
   useLocalDay()
   useReminderScheduler()
+  const mobile = useSyncExternalStore(watchLayout, () => mobileLayout.matches)
+  const [capture, setCapture] = useState(captureLinkPending)
+  const closeCapture = () => { consumeCaptureLink(); setCapture(false) }
+
+  useLayoutEffect(() => {
+    if (captureLinkPending() && props.account) consumeCaptureLink()
+  }, [props.account?.id])
+
+  return <>
+    {mobile ? <MobileWorkspace {...props} onCapture={() => setCapture(true)} /> : <DesktopWorkspace {...props} />}
+    {capture && <QuickCaptureDialog onClose={closeCapture} onSignIn={props.onSignIn && (() => {
+      if (!captureLinkPending()) {
+        history.replaceState(null, '', '/capture')
+        rememberCaptureLink()
+      }
+      props.onSignIn?.()
+    })} />}
+  </>
+}
+
+function DesktopWorkspace({ account, onSignIn, onSignOut }: WorkspaceProps) {
+  useKeyboardShortcuts()
   const editorAnchor = useRef<HTMLDivElement>(null)
   const [editorElement, setEditorElement] = useState<HTMLDivElement | null>(null)
   const registerEditor = useCallback((element: HTMLDivElement | null) => {

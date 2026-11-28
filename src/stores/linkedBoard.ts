@@ -2,6 +2,7 @@ import { useStore } from 'zustand'
 import { createStore } from 'zustand/vanilla'
 import type { Account } from '../types/auth'
 import type { Board } from '../types/workspace'
+import type { CaptureInput, CaptureState } from '../utils/quickCapture'
 import type { BrowserExportBoard } from '../utils/browserRecovery'
 
 export type LinkedStatus = 'checking' | 'saved' | 'saving' | 'unsaved' | 'conflict' | 'unavailable' | 'offline'
@@ -9,10 +10,13 @@ type LinkedState = {
   account?: Account; status: LinkedStatus; message?: string; linked: boolean
   hasRecovery?: boolean; recoveryPending?: boolean; importCount?: number
   durable?: boolean
+  capture?: CaptureState
 }
 const state = createStore<LinkedState>(() => ({ status: 'checking', linked: false }))
 interface AccountBoardClient {
   close(): void
+  captureNote(input: CaptureInput): Promise<void>
+  changeCapture(id: string, retry: boolean): Promise<void>
   retry(): Promise<void>
   reloadSaved(): Promise<void>
   keepDraft(): void
@@ -55,6 +59,11 @@ export async function importBrowserExport(entries: BrowserExportBoard[]) {
   if (!client) throw new Error('Sign in again to import a browser export.')
   await client.importExport(entries)
 }
+export async function captureAccountNote(input: CaptureInput) {
+  if (!client) throw new Error('Sign in to capture a note.')
+  await client.captureNote(input)
+}
+export function changeAccountCapture(id: string, retry: boolean) { return client?.changeCapture(id, retry) }
 export function retryLinkedBoard() { return client?.retry() }
 export function loadSavedLinkedBoard() { return client?.reloadSaved() }
 export function exportBrowserRecovery() { client?.downloadRecovery() }

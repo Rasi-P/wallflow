@@ -9,7 +9,7 @@ import { RemindersView } from './RemindersView'
 import { TaskNoteLink } from './TaskNoteLink'
 import { TodayView } from './TodayView'
 
-export function TasksPanel() {
+export function TasksPanel({ onOpenNote }: { onOpenNote?: (id: string) => void } = {}) {
   const panel = useRef<HTMLElement>(null)
   const closeButton = useRef<HTMLButtonElement>(null)
   const cancelDeleteButton = useRef<HTMLButtonElement>(null)
@@ -33,7 +33,8 @@ export function TasksPanel() {
 
   function focus(id: string) {
     close()
-    actions.focusNote(id)
+    if (onOpenNote) onOpenNote(id)
+    else actions.focusNote(id)
   }
 
   useLayoutEffect(() => {

@@ -33,10 +33,11 @@ The CLI output file contains local secrets. Keep it private, and pass only the p
 Install Playwright and Chromium in your test environment. Start the isolated preview on loopback port 55329 using the local Supabase API URL and publishable key.
 
 ```sh
-npm run dev --host 127.0.0.1 --port 55329
+npm run build
+npm run preview -- --host 127.0.0.1 --port 55329 --strictPort
 ```
 
-In another terminal, run the same Data API test with `WALLFLOW_PREVIEW_URL=http://127.0.0.1:55329`. If Playwright is installed outside the repository, also set `WALLFLOW_PLAYWRIGHT_MODULE` to its absolute `index.mjs` path. The test provisions two synthetic accounts and signs in with independent sessions before loading the real editor in laptop and phone viewports.
+In another terminal, run the same Data API test with `WALLFLOW_PREVIEW_URL=http://127.0.0.1:55329`. If Playwright is installed outside the repository, also set `WALLFLOW_PLAYWRIGHT_MODULE` to its absolute `index.mjs` path. The test provisions two synthetic accounts and signs in with independent sessions before loading the desktop and mobile workspaces. It exercises the production service worker, so use the production preview.
 
 ### Synthetic Django import rehearsal
 

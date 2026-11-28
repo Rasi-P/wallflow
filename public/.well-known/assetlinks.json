@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.wallflow.capture",
+      "sha256_cert_fingerprints": [
+        "1C:F2:A1:05:4F:4E:1D:C6:5B:13:5D:E1:3E:F9:35:4D:87:B6:1C:FF:23:7B:CA:4D:61:EE:D5:80:51:43:40:45"
+      ]
+    }
+  }
+]

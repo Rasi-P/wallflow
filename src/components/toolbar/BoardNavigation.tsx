@@ -1,14 +1,15 @@
 import { useState } from 'react'
-import { ChevronLeft, ChevronRight, Layers } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, Layers } from 'lucide-react'
 import { useWallStore, useWorkspaceStore, workspace } from '../../stores/wallStore'
 import { BoardManagementDialog } from '../ui/BoardManagementDialog'
 import { IconButton } from '../ui/IconButton'
 import type { BoardId } from '../../types/workspace'
 
-export function BoardNavigation() {
+export function BoardNavigation({ compact = false }: { compact?: boolean } = {}) {
   const activeId = useWorkspaceStore((state) => state.activeBoardId)
   const order = useWorkspaceStore((state) => state.boardOrder)
   const name = useWorkspaceStore((state) => state.boards[state.activeBoardId]?.name)
+  const boards = useWorkspaceStore((state) => compact ? state.boards : undefined)
   const dragging = useWallStore((state) => state.draggingId !== null)
   const [managedId, setManagedId] = useState<BoardId | null>(null)
   const managedName = useWorkspaceStore((state) => managedId === null ? undefined : state.boards[managedId]?.name)
@@ -16,6 +17,13 @@ export function BoardNavigation() {
 
   return <>
     <nav className="board-navigation" aria-label="Boards">
+      {compact ? <label className="compact-board-picker" title={name}>
+        <span className="board-name" aria-hidden="true">{name}</span><ChevronDown size={15} aria-hidden="true" />
+        <select aria-label="Switch board" value={activeId} disabled={dragging}
+          onChange={(event) => workspace.switchBoard(event.target.value)}>
+          {order.map((id) => <option key={id} value={id}>{boards?.[id]?.name}</option>)}
+        </select>
+      </label> : <>
       <IconButton label="Previous board" data-tooltip="Previous board ([)" aria-keyshortcuts="[" disabled={dragging || index === 0}
         onClick={() => workspace.stepBoard(-1)}><ChevronLeft size={17} aria-hidden="true" /></IconButton>
       <span className="board-position" title={name} aria-live="polite" aria-atomic="true">
@@ -24,6 +32,7 @@ export function BoardNavigation() {
       </span>
       <IconButton label="Next board" data-tooltip="Next board (])" aria-keyshortcuts="]" disabled={dragging || index === order.length - 1}
         onClick={() => workspace.stepBoard(1)}><ChevronRight size={17} aria-hidden="true" /></IconButton>
+      </>}
       <IconButton label="Manage boards" className="manage-boards-button" aria-haspopup="dialog" disabled={dragging} onClick={() => {
         if (useWallStore.getState().draggingId) return
         useWallStore.getState().finishEditing()

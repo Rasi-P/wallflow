@@ -44,8 +44,8 @@ function measureInsets(canvas: HTMLCanvasElement) {
   }
 }
 
-export function PhotoCameraRig({ phone, plaster, reducedMotion, onStudyOpening }: {
-  phone: boolean; plaster?: StudyOpening; reducedMotion: boolean; onStudyOpening: (opening: StudyOpening | null) => void
+export function PhotoCameraRig({ compact, plaster, reducedMotion, onStudyOpening }: {
+  compact: boolean; plaster?: StudyOpening; reducedMotion: boolean; onStudyOpening: (opening: StudyOpening | null) => void
 }) {
   const control = useRef<ComponentRef<typeof OrbitControls>>(null)
   const camera = useThree((state) => state.camera) as OrthographicCamera
@@ -56,7 +56,7 @@ export function PhotoCameraRig({ phone, plaster, reducedMotion, onStudyOpening }
   const command = useWallStore((state) => state.cameraCommand)
   const boardId = useWorkspaceStore((state) => state.activeBoardId)
   const previousBoard = useRef<string | undefined>(undefined)
-  const previousPhone = useRef(phone)
+  const previousCompact = useRef(compact)
   const handled = useRef<typeof command>(null)
   const framing = useRef<Frame | null>(null)
   const pending = useRef<PendingView | null>(null)
@@ -84,7 +84,7 @@ export function PhotoCameraRig({ phone, plaster, reducedMotion, onStudyOpening }
   const measureFrame = useCallback(() => {
     const document = useWallStore.getState()
     const insets = measureInsets(canvas)
-    const frame = phone ? mobileStudyFrame(width, height, document, insets, plaster) : photoWallFrame(width, height, document, insets)
+    const frame = compact ? mobileStudyFrame(width, height, document, insets, plaster) : photoWallFrame(width, height, document, insets)
     framing.current = frame
     if (control.current) {
       control.current.minZoom = frame.min
@@ -92,10 +92,10 @@ export function PhotoCameraRig({ phone, plaster, reducedMotion, onStudyOpening }
     }
     useWallStore.getState().setZoomBounds([Math.round(frame.min / frame.scale * 100), Math.round(frame.max / frame.scale * 100)])
     return frame
-  }, [canvas, height, phone, plaster, width])
+  }, [canvas, height, compact, plaster, width])
 
   const preparePreset = useCallback((frame: Frame, preset: Preset): PendingView => {
-    const opening = phone && preset === 'default' ? frame.opening ?? null : null
+    const opening = compact && preset === 'default' ? frame.opening ?? null : null
     onStudyOpening(opening)
     if (opening) {
       const state = useWallStore.getState()
@@ -103,23 +103,23 @@ export function PhotoCameraRig({ phone, plaster, reducedMotion, onStudyOpening }
       if (selected && !state.editingId && !studyNoteFitsOpening(selected, opening)) state.select(null)
     }
     return { ...presetView(frame, preset), preset }
-  }, [onStudyOpening, phone])
+  }, [onStudyOpening, compact])
 
   useLayoutEffect(() => {
     if (!width || !height || !control.current) return
-    const sameView = previousBoard.current === boardId && previousPhone.current === phone
+    const sameView = previousBoard.current === boardId && previousCompact.current === compact
     const previous = framing.current
     const wasAtHome = previous && cameraMatches(camera, presetView(previous, 'default'))
-    const wasAtOverview = phone && previous?.overview && cameraMatches(camera, presetView(previous, 'overview'))
-    const resizingPreset = phone ? pending.current?.preset : undefined
+    const wasAtOverview = compact && previous?.overview && cameraMatches(camera, presetView(previous, 'overview'))
+    const resizingPreset = compact ? pending.current?.preset : undefined
     const frame = measureFrame()
     previousBoard.current = boardId
-    previousPhone.current = phone
+    previousCompact.current = compact
     pending.current = null
     if (!sameView || !previous || wasAtHome) setView(preparePreset(frame, 'default'))
     else if (resizingPreset || wasAtOverview) setView(preparePreset(frame, resizingPreset ?? 'overview'))
     else setView({ target: [camera.position.x, camera.position.y], scale: MathUtils.clamp(camera.zoom, frame.min, frame.max) })
-  }, [boardId, camera, height, measureFrame, phone, preparePreset, setView, width])
+  }, [boardId, camera, height, measureFrame, compact, preparePreset, setView, width])
 
   useLayoutEffect(() => {
     const controls = control.current
@@ -152,7 +152,7 @@ export function PhotoCameraRig({ phone, plaster, reducedMotion, onStudyOpening }
     if (command.kind === 'reset' || command.kind === 'overview') {
       pending.current = preparePreset(measureFrame(), command.kind === 'overview' ? 'overview' : 'default')
     } else if (command.kind === 'zoom') {
-      if (phone) onStudyOpening(null)
+      if (compact) onStudyOpening(null)
       pending.current = {
         target: pending.current?.target ?? [controls.target.x, controls.target.y],
         scale: limit((pending.current?.scale ?? camera.zoom) / (command.value ?? 1)),
@@ -160,14 +160,14 @@ export function PhotoCameraRig({ phone, plaster, reducedMotion, onStudyOpening }
     } else {
       const focus = resolveCameraFocus(state, command.kind, command.targetId)
       if (!focus) return
-      const widthFraction = phone ? 0.68 : 0.78
+      const widthFraction = compact ? 0.68 : 0.78
       const scale = limit(Math.min(frame.areaWidth * widthFraction / focus.width, frame.areaHeight * 0.8 / focus.height))
-      if (phone) onStudyOpening(command.kind === 'focus'
+      if (compact) onStudyOpening(command.kind === 'focus'
         ? studyOpeningAt(focus.center, frame.areaWidth, frame.areaHeight, scale) : null)
       pending.current = { target: photoCameraTarget(focus.center, frame.centre, scale), scale }
     }
     invalidate()
-  }, [camera, command, invalidate, measureFrame, onStudyOpening, phone, preparePreset])
+  }, [camera, command, invalidate, measureFrame, onStudyOpening, compact, preparePreset])
 
   useFrame((_, delta) => {
     const view = pending.current
@@ -189,7 +189,7 @@ export function PhotoCameraRig({ phone, plaster, reducedMotion, onStudyOpening }
     touches={{ ONE: mode === 'pan' ? TOUCH.PAN : undefined, TWO: TOUCH.DOLLY_PAN }}
     onStart={() => {
       pending.current = null
-      if (phone) onStudyOpening(null)
+      if (compact) onStudyOpening(null)
     }}
     onChange={() => {
       const controls = control.current

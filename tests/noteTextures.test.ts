@@ -1,12 +1,12 @@
 import { test } from 'node:test'
 import type { TestContext } from 'node:test'
 import assert from 'node:assert/strict'
-import { createNoteTexture, NOTE_TEXTURE_SIZE } from '../src/three/textures.ts'
+import { COMPACT_NOTE_TEXTURE_SIZE, createNoteTexture, NOTE_TEXTURE_SIZE } from '../src/three/textures.ts'
 import { NoteTexturePool } from '../src/three/noteTextures.ts'
 import { MAX_NOTES, SAMPLE_NOTES } from '../src/utils/constants.ts'
 
 function mockCanvas(t: TestContext) {
-  const counts = { canvases: 0, fills: 0, composites: 0 }
+  const counts = { canvases: 0, fills: 0, composites: 0, scales: [] as number[] }
   // Count the real generator's canvas operations without requiring a browser or GPU.
   const documentMock = {
     createElement() {
@@ -14,6 +14,7 @@ function mockCanvas(t: TestContext) {
       return {
         width: 0, height: 0,
         getContext: () => ({
+          setTransform: (scale: number) => { counts.scales.push(scale) },
           fillRect: () => { counts.fills++ },
           drawImage: () => { counts.composites++ },
           createLinearGradient: () => ({ addColorStop() {} }),
@@ -94,4 +95,18 @@ test('baked artwork shares legacy lettering and separates different title styles
   assert.equal(handwritten, legacy)
   assert.notEqual(sans.texture, legacy.texture)
   for (const entry of [legacy, handwritten, sans]) pool.release(entry)
+})
+
+
+test('the compact pool uses quarter-area note textures with identical paper coordinates after an edit', (t) => {
+  const counts = mockCanvas(t)
+  const pool = new NoteTexturePool(COMPACT_NOTE_TEXTURE_SIZE)
+  const artwork = { ...SAMPLE_NOTES[0], doodle: undefined, phone: true as const }
+  const before = pool.update(null, artwork)
+  const after = pool.update(before, { ...artwork, title: 'A new title while zoomed in' })
+  assert.equal(after.texture.image.width * after.texture.image.height, NOTE_TEXTURE_SIZE ** 2 / 4)
+  assert.equal(after, before)
+  assert.deepEqual(counts.scales, [0.5, 0.5])
+  assert.equal(counts.composites, 2)
+  pool.release(after)
 })

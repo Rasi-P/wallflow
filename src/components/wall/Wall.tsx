@@ -4,7 +4,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { MeshBasicMaterial, PlaneGeometry } from 'three'
 import type { Group } from 'three'
 import { useWallStore } from '../../stores/wallStore'
-import { createContactShadow } from '../../three/textures'
+import { COMPACT_NOTE_TEXTURE_SIZE, createContactShadow } from '../../three/textures'
 import { createPaperGeometry, PAPER_SHAPE_COUNT, paperShapeForId } from '../../three/paperGeometry'
 import { photoNoteLayerDepth } from '../../three/noteLayers'
 import { CONTACT_SHADOW_OPACITY } from '../../three/paperMotion'
@@ -21,8 +21,8 @@ import { studyNoteFitsOpening, studySectionFitsOpening } from '../../three/mobil
 import type { StudyOpening } from '../../three/mobileStudyFrame'
 import type { PhotoWorkspace } from '../../types/wall'
 
-export function Wall({ group, prototypeSurface, phone, studyOpening, workspace }: {
-  group: RefObject<Group | null>; prototypeSurface?: BindNoteSurface | null; phone?: boolean; studyOpening: StudyOpening | null; workspace: PhotoWorkspace
+export function Wall({ group, prototypeSurface, phone, compact, studyOpening, workspace }: {
+  group: RefObject<Group | null>; prototypeSurface?: BindNoteSurface | null; phone?: boolean; compact: boolean; studyOpening: StudyOpening | null; workspace: PhotoWorkspace
 }) {
   const invalidate = useThree((state) => state.invalidate)
   const allNotes = useWallStore((s) => s.notes)
@@ -43,7 +43,7 @@ export function Wall({ group, prototypeSurface, phone, studyOpening, workspace }
   const visibleSections = useMemo(() => studyOpening
     ? sections.filter((section) => studySectionFitsOpening(section, studyOpening)) : sections, [sections, studyOpening])
   const visibleIds = useMemo(() => new Set(visibleNotes.map(({ id }) => id)), [visibleNotes])
-  const bakedSurface = useMemo(createBakedNoteSurface, [])
+  const bakedSurface = useMemo(() => createBakedNoteSurface(compact ? COMPACT_NOTE_TEXTURE_SIZE : undefined), [compact])
   const bindSurface = useMemo(() => keepColorEmoji(prototypeSurface, bakedSurface), [prototypeSurface, bakedSurface])
   const paperShapes = useMemo(() => Array.from({ length: PAPER_SHAPE_COUNT }, (_, index) => createPaperGeometry(index)), [])
   const sectionGeometry = useMemo(() => new PlaneGeometry(SECTION_WIDTH, SECTION_HEIGHT), [])
@@ -73,7 +73,7 @@ export function Wall({ group, prototypeSurface, phone, studyOpening, workspace }
         const isClip = workspace !== 'professor' && shape === 0
         return <StickyNote key={note.id} note={note} visible={visibleIds.has(note.id)} depth={photoNoteLayerDepth(index, note.id === foregroundId)} paperGeometry={paperShapes[shape]}
           contactGeometry={contactGeometry} contactMaterial={contactMaterial} paperMotions={paperMotions} bindSurface={bindSurface}
-          phone={phone} largerInk={phone && workspace !== 'professor'}
+          compact={compact} phone={phone} largerInk={phone && workspace !== 'professor'}
           attachmentGeometry={attachments.geometry} attachmentMaterial={attachments.materials[isClip ? 2 : shape - 1]}
           attachmentKind={isClip ? 'clip' : shape === 1 ? 'tape' : 'pin'} />
       })}

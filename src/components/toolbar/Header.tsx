@@ -1,4 +1,4 @@
-import { CalendarDays, Check, CircleAlert, Search, Settings2 } from 'lucide-react'
+import { CalendarDays, Check, CircleAlert, Search, Settings2, Zap } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useLinkedBoard } from '../../stores/linkedBoard'
 import { useWorkspaceStore, workspace, useWallStore } from '../../stores/wallStore'
@@ -15,11 +15,12 @@ function DailyProgressBadge() {
   return <span className="daily-progress-badge" aria-hidden="true">{completed}/{total}</span>
 }
 
-export function Header() {
+export function Header({ compact = false, onCapture }: { compact?: boolean; onCapture?: () => void } = {}) {
   const tasksOpen = useWallStore((s) => s.tasksOpen)
   const linked = useWorkspaceStore((s) => workspace.isLinked(s.activeBoardId))
   const accountStatus = useLinkedBoard((s) => s.status)
   const accountMessage = useLinkedBoard((s) => s.message)
+  const pendingCaptures = useLinkedBoard((s) => compact ? s.capture?.entries.length ?? 0 : 0)
   const durable = useLinkedBoard((s) => s.durable)
   const [saved, setSaved] = useState(storageHealth.available)
   useEffect(() => {
@@ -44,11 +45,14 @@ export function Header() {
     <div className="brand-group">
       <a href="./" className="brand" aria-label="WALLFLOW home"><img src="/favicon.svg" alt="" /><span>WALLFLOW<span className="brand-period">.</span></span></a>
       <span className="header-divider" />
-      <BoardNavigation />
+      <BoardNavigation compact={compact} />
     </div>
     <div className="header-actions"><span className={`save-status${linked ? ' save-status--supabase' : ''}${saveError ? ' is-error' : ''}`} role="status"
       title={saveError ? linked ? accountMessage : 'Changes are saved for this session only' : undefined}>
       {saveError ? <CircleAlert size={16} aria-hidden="true" /> : <Check size={13} />}<span>{savedLabel}</span></span>
+      {compact && <IconButton label="Quick Capture" className="compact-capture-trigger" aria-haspopup="dialog"
+        onClick={onCapture}><Zap size={19} />{pendingCaptures > 0 &&
+          <span className="daily-progress-badge" aria-label={`${pendingCaptures} pending captures`}>{pendingCaptures}</span>}</IconButton>}
       <IconButton id="wall-task-panel-trigger" data-tour-anchor="tasks" label="Today, reminders, and archive" data-tooltip="Today & tasks" active={tasksOpen} aria-expanded={tasksOpen}
         aria-controls={tasksOpen ? 'wall-task-panel' : undefined} onClick={() => useWallStore.getState().setPanel('tasksOpen', !tasksOpen)}><CalendarDays size={18} /><DailyProgressBadge /></IconButton>
       <IconButton data-tour-anchor="find" label="Find notes and sections" data-tooltip="Find on wall (Ctrl/⌘ K)" aria-keyshortcuts="Control+k Meta+k" onClick={() => useWallStore.getState().setPanel('searchOpen', true)}><Search size={19} /></IconButton>

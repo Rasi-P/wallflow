@@ -18,8 +18,8 @@ import { NoteSketch } from './NoteSketch'
 type TextField = 'title' | 'body'
 type Cursor = { field: TextField; start: number; end: number }
 
-export function NoteEditor({ note, anchor, registerAnchor }: {
-  note: StickyNoteData; anchor: RefObject<HTMLDivElement | null>; registerAnchor: (node: HTMLDivElement | null) => void
+export function NoteEditor({ note, anchor, registerAnchor, compact = false }: {
+  note: StickyNoteData; anchor: RefObject<HTMLDivElement | null>; registerAnchor: (node: HTMLDivElement | null) => void; compact?: boolean
 }) {
   const titleInput = useRef<HTMLTextAreaElement>(null)
   const bodyInput = useRef<HTMLTextAreaElement>(null)
@@ -71,6 +71,7 @@ export function NoteEditor({ note, anchor, registerAnchor }: {
   }
 
   useLayoutEffect(() => {
+    if (compact) return
     if (useWallStore.getState().showTaskDetails) {
       taskToggle.current?.focus({ preventScroll: true })
       return
@@ -78,7 +79,7 @@ export function NoteEditor({ note, anchor, registerAnchor }: {
     const input = titleInput.current
     input?.focus({ preventScroll: true })
     if (input) input.setSelectionRange(input.value.length, input.value.length)
-  }, [])
+  }, [compact])
   useLayoutEffect(() => {
     const cursor = nextCursor.current
     if (picker || !cursor) return
@@ -89,7 +90,23 @@ export function NoteEditor({ note, anchor, registerAnchor }: {
     savedCursor.current = cursor
   }, [picker, note.title, note.body])
 
+  useLayoutEffect(() => {
+    if (!compact) return
+    const dialog = anchor.current?.closest('dialog')
+    const viewport = window.visualViewport
+    if (!dialog || !viewport) return
+    const measure = () => {
+      dialog.style.setProperty('--note-viewport-height', `${viewport.height}px`)
+      dialog.style.setProperty('--note-viewport-centre', `${viewport.offsetTop + viewport.height / 2}px`)
+    }
+    measure()
+    viewport.addEventListener('resize', measure)
+    viewport.addEventListener('scroll', measure)
+    return () => { viewport.removeEventListener('resize', measure); viewport.removeEventListener('scroll', measure) }
+  }, [anchor, compact])
+
   useEffect(() => {
+    if (compact) return
     function finishOutside(event: PointerEvent) {
       if (event.target instanceof Node && !anchor.current?.contains(event.target) && useWallStore.getState().editingId === note.id) {
         useWallStore.getState().finishEditing()
@@ -97,15 +114,15 @@ export function NoteEditor({ note, anchor, registerAnchor }: {
     }
     window.addEventListener('pointerdown', finishOutside, true)
     return () => window.removeEventListener('pointerdown', finishOutside, true)
-  }, [anchor, note.id])
+  }, [anchor, compact, note.id])
 
-  return <div ref={registerAnchor} className="inline-note-editor" role="group" aria-label="Edit sticky note"
+  return <div ref={registerAnchor} className={compact ? "inline-note-editor inline-note-editor--compact" : "inline-note-editor"} role="group" aria-label="Edit sticky note"
     style={{ backgroundColor: paper, color: ink }}
     onPointerDown={(event) => {
       if (picker && event.target instanceof Element && !event.target.closest('[data-note-artwork-panel], [data-note-artwork-trigger]')) setPicker(null)
     }}
     onBlur={(event) => {
-      if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget) && useWallStore.getState().editingId === note.id) {
+      if (!compact && event.relatedTarget && !event.currentTarget.contains(event.relatedTarget) && useWallStore.getState().editingId === note.id) {
         useWallStore.getState().finishEditing()
       }
     }}
@@ -119,12 +136,12 @@ export function NoteEditor({ note, anchor, registerAnchor }: {
       }
       if (event.key === 'Enter' && !event.metaKey && !event.ctrlKey && target.tagName !== 'TEXTAREA') return
       const action = getEditorKeyAction(event.nativeEvent)
-      if (!action) return
+      if (!action || (compact && action === 'finish' && !event.metaKey && !event.ctrlKey)) return
       event.preventDefault()
       event.stopPropagation()
       useWallStore.getState().finishEditing(action === 'cancel-empty')
     }}>
-    <textarea ref={titleInput} aria-label="Note title" className="inline-note-title" rows={2} maxLength={MAX_TITLE_LENGTH}
+    <textarea ref={titleInput} data-initial-focus={compact && !tasksExpanded ? true : undefined} aria-label="Note title" className="inline-note-title" rows={2} maxLength={MAX_TITLE_LENGTH}
       style={{ fontFamily: titleFont }}
       onFocus={(event) => remember('title', event.currentTarget)}
       onSelect={(event) => remember('title', event.currentTarget)}
@@ -148,7 +165,7 @@ export function NoteEditor({ note, anchor, registerAnchor }: {
         setFeedback('Removed the corner illustration.')
         closePicker()
       }} />}
-    <button ref={taskToggle} type="button" className="note-task-toggle" aria-expanded={tasksExpanded} onClick={() => setTasksExpanded(!tasksExpanded)}>
+    <button ref={taskToggle} data-initial-focus={compact && tasksExpanded ? true : undefined} type="button" className="note-task-toggle" aria-expanded={tasksExpanded} onClick={() => setTasksExpanded(!tasksExpanded)}>
       <ListChecks size={15} /><span>Task details</span>{note.checklist?.length ? <small>{getChecklistProgress(note.checklist)}</small> : null}<ChevronDown size={13} />
     </button>
     {tasksExpanded && <NoteTaskDetails note={note} />}
@@ -158,8 +175,8 @@ export function NoteEditor({ note, anchor, registerAnchor }: {
         <NoteSketch id={note.doodle} size={43} />
       </span>}
     </div>
-    <div className="inline-note-footer"><span className="editor-key-hint">Shift+Enter for a new line</span>
+    {!compact && <div className="inline-note-footer"><span className="editor-key-hint">Shift+Enter for a new line</span>
       <button type="button" onClick={() => useWallStore.getState().finishEditing()}><Check size={15} /> Done</button>
-    </div>
+    </div>}
   </div>
 }

@@ -1,5 +1,5 @@
 import type { CanvasTexture } from 'three'
-import { createNoteTexture, repaintNoteTexture } from './textures.ts'
+import { createNoteTexture, NOTE_TEXTURE_SIZE, repaintNoteTexture } from './textures.ts'
 import type { NoteArtwork } from './textures.ts'
 
 export interface NoteTextureLease {
@@ -11,6 +11,10 @@ export interface NoteTextureLease {
 // One pool per wall. Geometry, position and note ID do not affect the baked artwork.
 export class NoteTexturePool {
   private readonly entries = new Map<string, NoteTextureLease>()
+
+  private readonly textureSize: number
+
+  constructor(textureSize = NOTE_TEXTURE_SIZE) { this.textureSize = textureSize }
 
   update(previous: NoteTextureLease | null, artwork: NoteArtwork): NoteTextureLease {
     const key = JSON.stringify([artwork.title, artwork.body, artwork.color, artwork.doodle, artwork.task,
@@ -32,7 +36,7 @@ export class NoteTexturePool {
       return previous
     }
 
-    const entry = { key, users: 1, texture: createNoteTexture(artwork) }
+    const entry = { key, users: 1, texture: createNoteTexture(artwork, this.textureSize) }
     this.entries.set(key, entry)
     if (previous) this.release(previous)
     return entry

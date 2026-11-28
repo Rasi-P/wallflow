@@ -31,8 +31,8 @@ export function keepColorEmoji(monochrome: BindNoteSurface | null | undefined, b
   }
 }
 
-export function createBakedNoteSurface(): BindNoteSurface {
-  const pool = new NoteTexturePool()
+export function createBakedNoteSurface(textureSize?: number): BindNoteSurface {
+  const pool = new NoteTexturePool(textureSize)
   return (material) => {
     let lease: NoteTextureLease | null = null
     return {

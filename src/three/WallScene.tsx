@@ -47,7 +47,7 @@ function PhotoBackdrop({ workspace }: { workspace: PhotoWorkspace }) {
   </picture>
 }
 
-export default memo(function WallScene({ editorElement }: { editorElement: HTMLDivElement | null }) {
+export default memo(function WallScene({ editorElement, compact }: { editorElement: HTMLDivElement | null; compact: boolean }) {
   const mode = useWallStore((s) => s.mode)
   const workspace = useWallStore((s) => s.appearance.photoWorkspace ?? 'professor')
   const phone = useStudyPhone()
@@ -76,7 +76,7 @@ export default memo(function WallScene({ editorElement }: { editorElement: HTMLD
 
   return <div className={`wall-scene photo-workspace mode-${mode}`} aria-label={`Interactive sticky-note wall in ${PHOTO_WORKSPACES[workspace].name}`}>
     <PhotoBackdrop key={workspace} workspace={workspace} />
-    {ready ? <Canvas style={{ position: 'absolute', inset: 0 }} orthographic frameloop="demand" flat camera={photoCameraOptions} dpr={[1, 1.75]}
+    {ready ? <Canvas style={{ position: 'absolute', inset: 0 }} orthographic frameloop="demand" flat camera={photoCameraOptions} dpr={compact ? [1, 1.5] : [1, 1.75]}
       gl={{ antialias: true, alpha: true }}
       onCreated={({ gl }) => {
         if (!prototypeSurface) return
@@ -96,8 +96,8 @@ export default memo(function WallScene({ editorElement }: { editorElement: HTMLD
       fallback={<div className="webgl-fallback"><h2>Your wall needs WebGL.</h2><p>Open WALLFLOW in a browser with hardware acceleration enabled.</p></div>}>
       <hemisphereLight args={paperLighting[workspace]} />
       <directionalLight position={[-5, 8, 12]} color={workspace === 'scientist' ? '#fafdff' : '#fffdf8'} intensity={2.05} />
-      <Wall group={wall} prototypeSurface={prototypeSurface} phone={phone} studyOpening={phone ? studyOpening : null} workspace={workspace} />
-      <PhotoCameraRig phone={phone} plaster={phonePlaster[workspace]} reducedMotion={reducedMotion} onStudyOpening={setStudyOpening} />
+      <Wall group={wall} prototypeSurface={prototypeSurface} phone={phone} compact={compact} studyOpening={compact ? studyOpening : null} workspace={workspace} />
+      <PhotoCameraRig compact={compact} plaster={phone ? phonePlaster[workspace] : undefined} reducedMotion={reducedMotion} onStudyOpening={setStudyOpening} />
       <NoteEditorPosition wall={wall} element={editorElement} />
     </Canvas> : <WallLoading />}
   </div>

@@ -6,8 +6,8 @@ export function handleWallShortcut(event: KeyboardEvent) {
   const target = event.target as HTMLElement | null
   const typing = target && (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable)
   if (event.defaultPrevented || event.isComposing || typing || state.draggingId) return
-  if (target?.closest?.('.board-management-dialog') ||
-    (typeof document !== 'undefined' && document.querySelector('dialog.board-management-dialog[open]'))) return
+  if (target?.closest?.('.board-management-dialog') || target?.closest?.('.capture-dialog') ||
+    (typeof document !== 'undefined' && document.querySelector('dialog:is(.board-management-dialog, .capture-dialog)[open]'))) return
   const key = event.key.toLowerCase()
   const modifier = event.metaKey || event.ctrlKey
   if (state.editingId) {

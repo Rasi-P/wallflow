@@ -8,7 +8,7 @@ fun config(key: String): String = providers.gradleProperty(key)
 fun quoted(value: String) = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 val configuredProject = config("WALLFLOW_SUPABASE_URL")
 val configuredKey = config("WALLFLOW_SUPABASE_PUBLISHABLE_KEY")
-val configuredHost = config("WALLFLOW_WEB_HOST")
+val configuredHost = config("WALLFLOW_WEB_HOST").lowercase()
 val configuredPackage = config("WALLFLOW_ANDROID_APPLICATION_ID").ifBlank { "com.wallflow.capture" }
 require(configuredProject.isBlank() || configuredProject.matches(Regex("https://[A-Za-z0-9.-]+/?")))
 require(configuredKey.isBlank() || configuredKey.matches(Regex("sb_publishable_[A-Za-z0-9_-]+")))
@@ -28,7 +28,7 @@ android {
         manifestPlaceholders["wallflowHost"] = configuredHost.ifBlank { "unconfigured.example" }
         buildConfigField("String", "SUPABASE_URL", quoted(configuredProject.trimEnd('/')))
         buildConfigField("String", "SUPABASE_KEY", quoted(configuredKey))
-        buildConfigField("String", "WEB_HOST", quoted(configuredHost.lowercase()))
+        buildConfigField("String", "WEB_HOST", quoted(configuredHost))
     }
     buildFeatures { buildConfig = true }
     compileOptions {

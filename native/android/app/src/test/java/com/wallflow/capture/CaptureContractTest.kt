@@ -12,11 +12,15 @@ class CaptureContractTest {
     }
 
     @Test fun verifiedLinkUsesExactHostAndPath() {
-        assertTrue(acceptsLink(URI("https://wall.example$CALLBACK_PATH?code=abc"), "wall.example", CALLBACK_PATH))
-        for (url in listOf("http://wall.example$CALLBACK_PATH", "https://wall.example.evil$CALLBACK_PATH",
-            "https://alice@wall.example$CALLBACK_PATH", "https://wall.example:444$CALLBACK_PATH",
-            "https://wall.example$CALLBACK_PATH#token", "https://wall.example$CALLBACK_PATH/")) {
-            assertFalse(acceptsLink(URI(url), "wall.example", CALLBACK_PATH))
+        val host = "wallflow-chi.vercel.app"
+        val callback = "https://wallflow-chi.vercel.app/auth/native/android/callback"
+        val capture = "https://wallflow-chi.vercel.app/capture/native/android"
+        assertTrue(acceptsLink(URI("$callback?code=abc"), host, CALLBACK_PATH))
+        assertTrue(acceptsLink(URI(capture), host, CAPTURE_PATH))
+        for (url in listOf("http://$host$CALLBACK_PATH", "https://$host.evil$CALLBACK_PATH",
+            "https://alice@$host$CALLBACK_PATH", "https://$host:444$CALLBACK_PATH",
+            "$callback#token", "$callback/", capture)) {
+            assertFalse(acceptsLink(URI(url), host, CALLBACK_PATH))
         }
     }
 

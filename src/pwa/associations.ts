@@ -18,9 +18,12 @@ export function nativeAssociations(env: Record<string, string | undefined>) {
       appIDs: [`${team}.${bundleId}`],
       components: [{ '/': '/capture/native/ios' }, { '/': '/auth/native/ios/callback' }],
     }] : [] } },
-    'assetlinks.json': applicationId && fingerprints.length ? [{
-      relation: ['delegate_permission/common.handle_all_urls'],
-      target: { namespace: 'android_app', package_name: applicationId, sha256_cert_fingerprints: [...new Set(fingerprints)] },
-    }] : [],
+    // Without a build-specific override, Vite copies the checked-in public association.
+    ...(applicationId && fingerprints.length ? {
+      'assetlinks.json': [{
+        relation: ['delegate_permission/common.handle_all_urls'],
+        target: { namespace: 'android_app', package_name: applicationId, sha256_cert_fingerprints: [...new Set(fingerprints)] },
+      }],
+    } : {}),
   }
 }

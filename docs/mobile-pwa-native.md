@@ -24,7 +24,7 @@ Use Vite development for UI iteration. Use the production build on localhost or 
 - A cold offline launch opens a downloaded account workspace only when the browser still has the exact, unexpired Supabase session previously verified with that workspace. An expired or missing session requires reconnecting before accessing account data. Device-only boards remain available from sign-in.
 - Web reminders use the existing in-app scheduler and available browser notification permission.
 
-Set the following additional values on a dedicated HTTPS Vercel preview when device-testing links. Omit both values for an unconfigured platform. The build emits empty association files for unconfigured platforms.
+The default build serves the checked-in [Android association](../public/.well-known/assetlinks.json) for the WALLFLOW debug APK on `wallflow-chi.vercel.app`. Leave the Android build variables unset on that deployment to use this file. Set both Android variables to override it for another signing configuration on a dedicated preview. Set both iOS variables to publish a Universal Links association for that platform.
 
 | Build variable | Value |
 | --- | --- |
@@ -73,30 +73,32 @@ Install a JDK 17 and Android SDK Platform 36 with Build Tools 35.0.0. The includ
 
 ```sh
 cd native/android
-export WALLFLOW_WEB_HOST=wallflow.example.com
+export WALLFLOW_WEB_HOST=wallflow-chi.vercel.app
 export WALLFLOW_SUPABASE_URL=https://example-ref.supabase.co
 export WALLFLOW_SUPABASE_PUBLISHABLE_KEY=sb_publishable_REPLACE_ME
-export WALLFLOW_ANDROID_APPLICATION_ID=com.yourorganization.wallflow
+export WALLFLOW_ANDROID_APPLICATION_ID=com.wallflow.capture
 ./gradlew :app:signingReport
 ./gradlew :app:testDebugUnitTest :app:assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ./gradlew :app:connectedDebugAndroidTest
 ```
 
-Use the signing report’s matching SHA-256 fingerprint in the preview build. If distributing with Play App Signing later, use the certificate that signs the APK installed on the device. [Android App Links troubleshooting](https://developer.android.com/training/app-links/troubleshoot), [Android Gradle Plugin requirements](https://developer.android.com/build/releases/agp-8-10-0-release-notes)
+Compare the signing report’s SHA-256 fingerprint to the checked-in Android association. For a different APK signature, use the certificate that actually signs the installed APK on the intended host. [Android App Links troubleshooting](https://developer.android.com/training/app-links/troubleshoot), [Android Gradle Plugin requirements](https://developer.android.com/build/releases/agp-8-10-0-release-notes)
 
-1. Install the debug APK, then add **WALLFLOW** from the launcher’s widget picker. Start the first Google sign-in by tapping **Quick Capture** on the widget. Confirm the callback returns to the native composer.
-2. Verify Android’s link registration. Replace the example application ID and host below with the values used in the installed build and its association file.
+1. When authorized, deploy the updated build to the Vercel project serving `wallflow-chi.vercel.app`. Confirm `curl -i https://wallflow-chi.vercel.app/.well-known/assetlinks.json` returns HTTP 200 with `Content-Type: application/json` and the checked-in association.
+2. In the WALLFLOW Supabase project, ensure **Authentication → URL Configuration → Redirect URLs** includes exactly `https://wallflow-chi.vercel.app/auth/native/android/callback`. Retain the existing web redirects. [Supabase redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls)
+3. Install the matching debug APK and verify Android’s link registration.
 
    ```sh
-   adb shell pm verify-app-links --re-verify com.yourorganization.wallflow
-   adb shell pm get-app-links com.yourorganization.wallflow
-   adb shell am start -a android.intent.action.VIEW -c android.intent.category.BROWSABLE -d https://wallflow.example.com/capture/native/android
+   adb shell pm verify-app-links --re-verify com.wallflow.capture
+   adb shell pm get-app-links com.wallflow.capture
+   adb shell am start -a android.intent.action.VIEW -c android.intent.category.BROWSABLE -d https://wallflow-chi.vercel.app/capture/native/android
    ```
 
-3. Select a board, enter a note and checklist, and submit. See the note in a signed-in browser and the status update on the widget.
-4. Turn on airplane mode, open the composer from the widget, submit and close the app. Reopen, confirm the pending entry, restore network connectivity while the composer is visible and verify that it syncs once. Use **Sync now** to retry a transient API outage.
-5. With a pending capture, sign out and sign in as a second authorized Google user. Confirm the old capture is hidden. Sign back into the original account to finish syncing it.
+4. Wait until `adb shell pm get-app-links com.wallflow.capture` reports `wallflow-chi.vercel.app: verified`. Add **WALLFLOW** from the launcher’s widget picker, tap **Quick Capture**, and confirm Google sign-in returns to the native composer.
+5. Select a board, enter a note and checklist, and submit. See the note in a signed-in browser and the status update on the widget.
+6. Turn on airplane mode, open the composer from the widget, submit and close the app. Reopen, confirm the pending entry, restore network connectivity while the composer is visible and verify that it syncs once. Use **Sync now** to retry a transient API outage.
+7. With a pending capture, sign out and sign in as a second authorized Google user. Confirm the old capture is hidden. Sign back into the original account to finish syncing it.
 
 ## iOS build and device test
 

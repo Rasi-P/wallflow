@@ -154,16 +154,18 @@ test('offline proof is scoped to the exact previously verified unexpired session
   assert.equal(matchesOfflineSession(null, proof), false)
 })
 
-test('association files bind only configured app IDs and verified signing fingerprints', () => {
+test('only explicit Android build settings override the static association', () => {
   const fingerprint = Array(32).fill('ab').join(':')
   const unconfigured = nativeAssociations({})
-  assert.deepEqual(unconfigured, { 'apple-app-site-association': { applinks: { details: [] } }, 'assetlinks.json': [] })
+  assert.deepEqual(unconfigured, { 'apple-app-site-association': { applinks: { details: [] } } })
   const configured = nativeAssociations({
     WALLFLOW_IOS_TEAM_ID: '1234567890', WALLFLOW_IOS_BUNDLE_ID: 'com.wallflow.capture',
     WALLFLOW_ANDROID_APPLICATION_ID: 'com.wallflow.capture', WALLFLOW_ANDROID_SHA256_FINGERPRINTS: fingerprint,
   })
   assert.deepEqual(configured['apple-app-site-association'].applinks.details[0].appIDs, ['1234567890.com.wallflow.capture'])
-  assert.deepEqual(configured['assetlinks.json'][0].target.sha256_cert_fingerprints, [fingerprint.toUpperCase()])
+  assert.deepEqual(configured['assetlinks.json']?.[0].target.sha256_cert_fingerprints, [fingerprint.toUpperCase()])
   assert.throws(() => nativeAssociations({ WALLFLOW_IOS_TEAM_ID: '1234567890' }), /Apple team/)
   assert.throws(() => nativeAssociations({ WALLFLOW_ANDROID_APPLICATION_ID: 'com.wallflow.capture' }), /Android application/)
+  assert.throws(() => nativeAssociations({ WALLFLOW_ANDROID_APPLICATION_ID: 'com.wallflow.capture',
+    WALLFLOW_ANDROID_SHA256_FINGERPRINTS: 'not-a-fingerprint' }), /signing fingerprints/)
 })

@@ -10,6 +10,7 @@ type StudyView = { content: Point2; scale: number }
 type Paper = { box: StudyOpening; position: Point2; width: number; height: number }
 
 // The empty plaster in the portrait assets, expressed in uncropped image coordinates.
+const widePlaster = { left: 0.15, right: 0.86, top: 0.18, bottom: 0.84 }
 const studyPlaster = { left: 0.16, right: 0.84, top: 0.195, bottom: 0.855 }
 
 function rectangle([x, y]: Point2, width: number, height: number): StudyOpening {
@@ -112,7 +113,7 @@ function chooseCluster(papers: Paper[], ideal: number, areaWidth: number, areaHe
   return best
 }
 
-export function mobileStudyFrame(width: number, height: number, document: WallDocument, insets: WallFrameInsets, plaster = studyPlaster) {
+export function mobileStudyFrame(width: number, height: number, document: WallDocument, insets: WallFrameInsets, plaster = width > height ? widePlaster : studyPlaster) {
   const left = Math.max(width * plaster.left, insets.left) + 8
   const right = Math.min(width * plaster.right, width - insets.right) - 8
   const top = Math.max(height * plaster.top, insets.top) + 8
@@ -126,7 +127,8 @@ export function mobileStudyFrame(width: number, height: number, document: WallDo
 
   const notes = document.notes.filter((note) => !note.archived)
   const widths = notes.map((note) => getNoteSize(note)[0]).sort((a, b) => a - b)
-  const ideal = areaWidth * 0.44 / (widths[Math.floor(widths.length / 2)] ?? NOTE_WIDTH)
+  const readingScale = areaWidth * 0.44 / (widths[Math.floor(widths.length / 2)] ?? NOTE_WIDTH)
+  const ideal = width > height ? Math.min(readingScale, areaHeight * 0.47 / NOTE_WIDTH) : readingScale
   const cluster = notes.length > 1 && fit < ideal * 0.8
     ? chooseCluster(notes.map(paperFootprint), ideal, areaWidth, areaHeight, boardCentre)
     : undefined

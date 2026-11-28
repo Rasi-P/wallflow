@@ -68,7 +68,10 @@ test('board navigation stays outside dialogs and board management guards other w
   const genericDialogButton = { tagName: 'BUTTON', closest: (query: string) => query.includes('[role="dialog"]') ? {} : null } as HTMLElement
   assert.equal(press(']', { target: genericDialogButton }), false)
   const managementButton = { tagName: 'BUTTON', closest: (query: string) => query === '.board-management-dialog' ? {} : null } as HTMLElement
-  for (const key of [']', 'n', 'delete']) assert.equal(press(key, { target: managementButton }), false)
+  const captureButton = { tagName: 'BUTTON', closest: (query: string) => query === '.capture-dialog' ? {} : null } as HTMLElement
+  for (const target of [managementButton, captureButton]) {
+    for (const key of [']', 'n', 'delete']) assert.equal(press(key, { target }), false)
+  }
   assert.equal(workspace.getState().activeBoardId, first)
   assert.equal(useWallStore.getState().editingId, null)
 })

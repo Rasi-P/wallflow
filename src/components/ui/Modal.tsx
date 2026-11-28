@@ -3,7 +3,9 @@ import type { ReactNode } from 'react'
 import { X } from 'lucide-react'
 import { IconButton } from './IconButton'
 
-export function Modal({ title, children, onClose, className = '' }: { title: string; children: ReactNode; onClose: () => void; className?: string }) {
+export function Modal({ title, children, onClose, headerAction, className = '' }: {
+  title: string; children: ReactNode; onClose: () => void; headerAction?: ReactNode; className?: string
+}) {
   const dialog = useRef<HTMLDialogElement>(null)
   const titleId = useId()
   useLayoutEffect(() => {
@@ -17,9 +19,12 @@ export function Modal({ title, children, onClose, className = '' }: { title: str
       if (opener instanceof HTMLElement && opener.isConnected && document.activeElement === document.body) opener.focus({ preventScroll: true })
     }
   }, [])
+  const close = <IconButton label="Close dialog" onClick={onClose}><X size={19} /></IconButton>
   return <dialog ref={dialog} className={`modal ${className}`} onCancel={(event) => { event.preventDefault(); onClose() }}
     onClick={(e) => { if (e.target === e.currentTarget) { const box = e.currentTarget.getBoundingClientRect(); if (e.clientX < box.left || e.clientX > box.right || e.clientY < box.top || e.clientY > box.bottom) onClose() } }} aria-labelledby={titleId}>
-    <div className="modal-header"><h2 id={titleId}>{title}</h2><IconButton label="Close dialog" onClick={onClose}><X size={19} /></IconButton></div>
+    <div className="modal-header"><h2 id={titleId}>{title}</h2>
+      {headerAction ? <div className="modal-header-actions">{headerAction}{close}</div> : close}
+    </div>
     {children}
   </dialog>
 }

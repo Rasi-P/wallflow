@@ -18,7 +18,7 @@ npm run preview -- --host 127.0.0.1 --port 4173
 
 Use Vite development for UI iteration. Use the production build on localhost or 127.0.0.1 to test installation, Cache Storage and service-worker updates. Allowlist the exact local web callback if testing Google sign-in there. On physical devices use an HTTPS preview origin with its own allowed callbacks.
 
-- Open the mobile **Settings** screen for the theme and **Install WALLFLOW**. Open **Boards** for board management, import, backup and sync conflict recovery. **Tasks** opens Today, deadlines, reminders and archive. **Capture** opens the composer and outbox.
+- Open the mobile **Settings** screen for the theme and **Install WALLFLOW**. Use the board picker and **Manage boards** for switching, imports, backup and conflict recovery. The calendar opens Today, deadlines, reminders and archive. Tap the lightning icon for **Quick Capture** and the outbox. Drag notes with one finger and pinch or move two fingers to navigate the same 3D wall. **Fit whole board** shows every note, and **More wall tools** contains Reset, Redo and the one-finger pan mode.
 - Chromium can show an install prompt. On iPhone or iPad, open Safari and use **Share → Add to Home Screen**. Open the installed app once online to prime its shell and account workspace. With a new release waiting, select **Refresh** to persist account drafts and activate the update.
 - The worker precaches a release-specific public shell and lazily caches only the repository’s public environment images. Allowed navigation paths use the cached shell. It omits cookies on cache fills and excludes OAuth callbacks, query-bearing requests, authorization headers, API traffic, private responses and all cross-origin traffic.
 - A cold offline launch opens a downloaded account workspace only when the browser still has the exact, unexpired Supabase session previously verified with that workspace. An expired or missing session requires reconnecting before accessing account data. Device-only boards remain available from sign-in.
@@ -114,6 +114,16 @@ xcodebuild -project Wallflow.xcodeproj -scheme Wallflow -destination 'generic/pl
 3. From Notes or Messages tap `https://<web-host>/capture/native/ios` and confirm the Universal Link opens the composer. For a fresh association file, allow for Apple’s CDN propagation. [Debugging Universal Links](https://developer.apple.com/documentation/Technotes/tn3155-debugging-universal-links)
 4. Capture text and a checklist into a chosen board. Check that the web workspace updates and WidgetKit reflects the generic result when it reloads. On small widgets the entire widget opens Quick Capture. On medium widgets the labeled link also opens it. Text entry runs in the foreground SwiftUI composer. A Shortcuts action can open the same composer. [WidgetKit interactions](https://developer.apple.com/documentation/widgetkit/adding-interactivity-to-widgets-and-live-activities)
 5. Repeat the offline and account-switching tests from Android. Use the app’s **Sync now** action after an API outage. Verify a signed-out widget opens the sign-in screen without displaying text from the previous account.
+
+## Repeat the mobile wall browser review
+
+Build WALLFLOW and run the optional Chrome test with Playwright installed. Pass a directory for screenshots and, optionally, a separate pre-change build directory to compare the desktop screenshots.
+
+```sh
+node --experimental-strip-types tests/mobileWall.browser.ts /tmp/wallflow-screenshots /path/to/baseline-dist
+```
+
+Use `WALLFLOW_PLAYWRIGHT_MODULE` for Playwright installed outside the project and `WALLFLOW_CHROMIUM_BINARY` for a local Chrome binary. The test uses an isolated browser profile, synthetic notes, and emulated touch input. On physical phones, repeat the drag, corner resize, pinch, two-finger pan, rotation and keyboard tests with the installed PWA.
 
 ## Release checklist
 

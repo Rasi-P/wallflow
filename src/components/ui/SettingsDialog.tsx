@@ -26,19 +26,18 @@ export function SettingsDialog({ account, onSignIn, onSignOut, mobile }: {
       <div className="settings-content">
         <label className="field-label" htmlFor="wall-name">Wall name</label><input id="wall-name" className="text-input" value={name} onChange={(e) => setName(e.target.value)} maxLength={48} />
         <AppearanceSettings />
-        {mobile && <><InstallWallflow /><label className="mobile-theme-field">Theme <select aria-label="Mobile theme" defaultValue={document.documentElement.dataset.mobileTheme ?? 'system'} onChange={(event) => {
+        {mobile && <label className="mobile-theme-field">Theme <select aria-label="Mobile theme" defaultValue={document.documentElement.dataset.mobileTheme ?? 'system'} onChange={(event) => {
           const value = event.target.value
           document.documentElement.dataset.mobileTheme = value
           try { localStorage.setItem('wallflow:mobile-theme', value) } catch { /* Keep the theme for this view. */ }
-        }}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label></>}
-        {!mobile && <><label className="toggle-label"><strong>Show movement hints</strong><input type="checkbox" role="switch" checked={showHints} onChange={(e) => useWallStore.getState().setShowHints(e.target.checked)} /></label>
+        }}><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></label>}
+        <label className="toggle-label"><strong>Show movement hints</strong><input type="checkbox" role="switch" checked={showHints} onChange={(e) => useWallStore.getState().setShowHints(e.target.checked)} /></label>
         <button type="button" className="text-button settings-walkthrough" onClick={() => {
           const { setWallName, startTutorial } = useWallStore.getState()
           setWallName(name)
           startTutorial()
         }}><Compass size={16} /> Start walkthrough</button>
-        </>}
-        {!mobile && <InstallWallflow />}
+        <InstallWallflow />
         {account && <section className="settings-account" aria-label="Google account">
           <h3>Google account</h3>
           <p>{account.email ?? account.displayName ?? 'Signed in with Google'}</p>

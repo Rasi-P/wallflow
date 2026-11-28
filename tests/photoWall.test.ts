@@ -138,3 +138,25 @@ test('phone home fits around isolated notes and supports an empty board', () => 
   assert.ok(Number.isFinite(blankView.scale) && blankView.scale > 0)
   assert.deepEqual(blankView.overview, { content: blankView.content, scale: blankView.scale })
 })
+
+
+test('the compact landscape camera keeps the paper area clear of controls and reaches every saved position', () => {
+  const width = 844, height = 390
+  const insets = { left: 45, right: 45, top: 66, bottom: 64 }
+  const wall: WallDocument = {
+    ...denseWall,
+    notes: Array.from({ length: 60 }, (_, index) => ({
+      ...denseWall.notes[index % denseWall.notes.length],
+      id: 'landscape-' + index,
+      position: [-12.5 + (index % 10) * 2.75, 7.4 - Math.floor(index / 10) * 3],
+    })),
+  }
+  const saved = structuredClone(wall)
+  const frame = mobileStudyFrame(width, height, wall, insets)
+  assert.ok(frame.opening)
+  const visible = wall.notes.filter((note) => studyNoteFitsOpening(note, frame.opening!))
+  assert.ok(visible.length > 0 && visible.length < wall.notes.length)
+  assertPaperFitsPhone({ ...wall, notes: visible }, frame, width, height)
+  assertPaperFitsPhone(wall, { ...frame, ...frame.overview }, width, height)
+  assert.deepEqual(wall, saved)
+})

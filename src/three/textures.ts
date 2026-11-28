@@ -109,6 +109,7 @@ function ellipsize(writer: ReturnType<typeof lineWriter>, line: string, width: n
 }
 
 export const NOTE_TEXTURE_SIZE = 1024
+export const COMPACT_NOTE_TEXTURE_SIZE = 512
 export const DEFAULT_NOTE_TITLE = 'A fresh little thought.'
 export const DEFAULT_NOTE_BODY = 'Double-click to make it yours.'
 export type NoteInk = Pick<StickyNoteData, 'title' | 'body' | 'doodle' | 'typography' | 'inlineSketches'> & {
@@ -241,9 +242,17 @@ function paintTaskInk(ctx: CanvasRenderingContext2D, task: TaskInk, font: string
   }
 }
 
-export function createNoteTexture(note: NoteArtwork) {
-  const { element, context } = canvas(NOTE_TEXTURE_SIZE)
+function paintTexture(context: CanvasRenderingContext2D, note: NoteArtwork, size: number) {
+  if (size !== NOTE_TEXTURE_SIZE) {
+    const scale = size / NOTE_TEXTURE_SIZE
+    context.setTransform(scale, 0, 0, scale, 0, 0)
+  }
   paintNote(context, note)
+}
+
+export function createNoteTexture(note: NoteArtwork, size = NOTE_TEXTURE_SIZE) {
+  const { element, context } = canvas(size)
+  paintTexture(context, note, size)
   const texture = new CanvasTexture(element)
   texture.colorSpace = SRGBColorSpace
   texture.anisotropy = 8
@@ -253,7 +262,7 @@ export function createNoteTexture(note: NoteArtwork) {
 export function repaintNoteTexture(texture: CanvasTexture<HTMLCanvasElement>, note: NoteArtwork) {
   const context = texture.image.getContext('2d')
   if (!context) throw new Error('Canvas is unavailable in this browser.')
-  paintNote(context, note)
+  paintTexture(context, note, texture.image.width)
   texture.needsUpdate = true
 }
 

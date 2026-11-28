@@ -25,12 +25,12 @@ import { retryLinkedBoard, useLinkedBoard } from '../stores/linkedBoard'
 import { BOARD_LINK_PREFIX, restoreSourceProtection } from '../utils/boardLinkStorage'
 import { captureLinkPending, consumeCaptureLink, rememberCaptureLink } from '../pwa/captureLink'
 import { QuickCaptureDialog } from '../components/mobile/QuickCaptureDialog'
-import { MobileWorkspace } from '../components/mobile/MobileWorkspace'
+import { Modal } from '../components/ui/Modal'
 import { AuthLoading, SignIn } from '../auth/SignIn'
 
 const WallScene = lazy(() => import('../three/WallScene'))
 
-function BoardStage({ editorElement }: { editorElement: HTMLDivElement | null }) {
+function BoardStage({ editorElement, compact }: { editorElement: HTMLDivElement | null; compact: boolean }) {
   const activeId = useWorkspaceStore((state) => state.activeBoardId)
   const previous = useRef(activeId)
   const stage = useRef<HTMLDivElement>(null)
@@ -46,7 +46,7 @@ function BoardStage({ editorElement }: { editorElement: HTMLDivElement | null })
   }, [activeId, reducedMotion])
 
   return <div ref={stage} className="board-stage">
-    <SceneErrorBoundary><Suspense fallback={<WallLoading />}><WallScene editorElement={editorElement} /></Suspense></SceneErrorBoundary>
+    <SceneErrorBoundary><Suspense fallback={<WallLoading />}><WallScene editorElement={editorElement} compact={compact} /></Suspense></SceneErrorBoundary>
   </div>
 }
 
@@ -106,31 +106,18 @@ const watchLayout = (notify: () => void) => {
   return () => mobileLayout.removeEventListener('change', notify)
 }
 
-function BoardWorkspace(props: WorkspaceProps) {
+function BoardWorkspace({ account, onSignIn, onSignOut }: WorkspaceProps) {
   useLocalDay()
   useReminderScheduler()
-  const mobile = useSyncExternalStore(watchLayout, () => mobileLayout.matches)
+  useKeyboardShortcuts()
+  const compact = useSyncExternalStore(watchLayout, () => mobileLayout.matches)
   const [capture, setCapture] = useState(captureLinkPending)
   const closeCapture = () => { consumeCaptureLink(); setCapture(false) }
 
   useLayoutEffect(() => {
-    if (captureLinkPending() && props.account) consumeCaptureLink()
-  }, [props.account?.id])
+    if (captureLinkPending() && account) consumeCaptureLink()
+  }, [account?.id])
 
-  return <>
-    {mobile ? <MobileWorkspace {...props} onCapture={() => setCapture(true)} /> : <DesktopWorkspace {...props} />}
-    {capture && <QuickCaptureDialog onClose={closeCapture} onSignIn={props.onSignIn && (() => {
-      if (!captureLinkPending()) {
-        history.replaceState(null, '', '/capture')
-        rememberCaptureLink()
-      }
-      props.onSignIn?.()
-    })} />}
-  </>
-}
-
-function DesktopWorkspace({ account, onSignIn, onSignOut }: WorkspaceProps) {
-  useKeyboardShortcuts()
   const editorAnchor = useRef<HTMLDivElement>(null)
   const [editorElement, setEditorElement] = useState<HTMLDivElement | null>(null)
   const registerEditor = useCallback((element: HTMLDivElement | null) => {
@@ -152,9 +139,9 @@ function DesktopWorkspace({ account, onSignIn, onSignOut }: WorkspaceProps) {
   const tutorial = useWallStore((s) => s.tutorial)
   const tourTarget = typeof tutorial === 'number' ? TUTORIAL_STEPS[tutorial]?.target : undefined
 
-  return <main className="wallflow-app" data-tour-target={tourTarget}>
-    <BoardStage editorElement={editorElement} />
-    <Header />
+  return <main className={compact ? "wallflow-app wallflow-app--compact" : "wallflow-app"} data-tour-target={tourTarget}>
+    <BoardStage editorElement={compact ? null : editorElement} compact={compact} />
+    <Header compact={compact} onCapture={() => setCapture(true)} />
     {tasksOpen && <TasksPanel />}
     {showWelcome && tutorial === null && <Welcome />}
     {tutorial !== null && <WallTutorial progress={tutorial} />}
@@ -162,16 +149,29 @@ function DesktopWorkspace({ account, onSignIn, onSignOut }: WorkspaceProps) {
       <span>This board is empty.</span>
       <button type="button" className="text-button" onClick={() => useWallStore.getState().addNote()}><Plus size={16} aria-hidden="true" /> Add your first note</button>
     </div>}
-    <Toolbar />
+    <Toolbar compact={compact} />
     <footer className="app-footer"><div className="wall-note-count"><StickyNoteIcon size={14} /><span>{noteCount} {noteCount === 1 ? 'note' : 'notes'}</span>
       {filtered && <button type="button" className="clear-wall-filters" onClick={() => useWallStore.getState().setFilters(DEFAULT_FILTERS)}><FilterX size={14} /> Clear filters</button>}
     </div>
       {showHints && <div className="interaction-hints"><span><MousePointer2 size={13} /> Drag notes to make it yours</span><span className="hint-dot">·</span><span><ZoomIn size={13} /> Scroll to zoom</span></div>}
       <button type="button" className="help-trigger" onClick={() => useWallStore.getState().setPanel('helpOpen', true)}><CircleHelp size={17} /><span>Help</span></button>
     </footer>
-    {note && <NoteEditor key={note.id} note={note} anchor={editorAnchor} registerAnchor={registerEditor} />}
+    {note && (compact
+      ? <Modal key={note.id} title="Edit sticky note" className="compact-note-modal" onClose={() => useWallStore.getState().finishEditing(true)}
+        headerAction={<button type="button" className="primary-button"
+          onClick={() => useWallStore.getState().finishEditing()}>Done</button>}>
+        <NoteEditor note={note} anchor={editorAnchor} registerAnchor={registerEditor} compact />
+      </Modal>
+      : <NoteEditor key={note.id} note={note} anchor={editorAnchor} registerAnchor={registerEditor} />)}
     {searchOpen && <SearchDialog />}
-    {settingsOpen && <SettingsDialog account={account} onSignIn={onSignIn} onSignOut={onSignOut} />}
-    {helpOpen && <HelpDialog />}
+    {settingsOpen && <SettingsDialog mobile={compact} account={account} onSignIn={onSignIn} onSignOut={onSignOut} />}
+    {helpOpen && <HelpDialog compact={compact} />}
+    {capture && <QuickCaptureDialog onClose={closeCapture} onSignIn={onSignIn && (() => {
+      if (!captureLinkPending()) {
+        history.replaceState(null, '', '/capture')
+        rememberCaptureLink()
+      }
+      onSignIn()
+    })} />}
   </main>
 }

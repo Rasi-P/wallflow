@@ -40,6 +40,7 @@ interface NoteProps {
   attachmentGeometry: PlaneGeometry
   attachmentMaterial?: MeshBasicMaterial
   attachmentKind: 'tape' | 'pin' | 'clip'
+  compact: boolean
   phone?: boolean
   largerInk?: boolean
   bindSurface: BindNoteSurface
@@ -47,12 +48,13 @@ interface NoteProps {
 
 const ignoreRaycast = () => null
 
-export const StickyNote = memo(function StickyNote({ note, visible, depth, paperGeometry, contactGeometry, contactMaterial, paperMotions, bindSurface, attachmentGeometry, attachmentMaterial, attachmentKind, phone, largerInk }: NoteProps) {
+export const StickyNote = memo(function StickyNote({ note, visible, depth, paperGeometry, contactGeometry, contactMaterial, paperMotions, bindSurface, attachmentGeometry, attachmentMaterial, attachmentKind, compact, phone, largerInk }: NoteProps) {
   const group = useRef<Group>(null)
   const footprint = useRef<Group>(null)
   const paper = useRef<Mesh>(null)
   const contact = useRef<Mesh<PlaneGeometry, MeshBasicMaterial>>(null)
   const drag = useRef<DragState | null>(null)
+  const lastPointer = useRef<string | undefined>(undefined)
   const motion = useRef({ lift: 0, target: 0, reduced: false, material: null as MeshBasicMaterial | null })
   const material = useRef<MeshStandardMaterial>(null)
   const surface = useRef<ReturnType<BindNoteSurface> | null>(null)
@@ -65,16 +67,17 @@ export const StickyNote = memo(function StickyNote({ note, visible, depth, paper
   const sketchAspect = isSketchId(doodle) || inlineSketches ? size[0] / size[1] : undefined
   const today = useWallStore((state) => dueDate ? state.today : '')
   const task = useMemo(() => getTaskInk({ checklist, priority, dueDate, completed }, today), [checklist, priority, dueDate, completed, today])
+  const showSurface = !compact || visible
   useLayoutEffect(() => {
-    if (!material.current) return
+    if (!showSurface || !material.current) return
     const binding = bindSurface(material.current)
     surface.current = binding
     return () => { surface.current = null; binding.dispose() }
-  }, [bindSurface])
+  }, [bindSurface, showSurface])
   useLayoutEffect(() => {
     surface.current?.update({ title, body, color, doodle, inlineSketches, sketchAspect, task, typography, phone: phone || undefined, largerInk })
     invalidate()
-  }, [bindSurface, title, body, color, doodle, inlineSketches, sketchAspect, task, typography, phone, largerInk, invalidate])
+  }, [bindSurface, title, body, color, doodle, inlineSketches, sketchAspect, task, typography, phone, largerInk, showSurface, invalidate])
 
   const frame = useCallback<PaperMotionFrame>((delta) => {
     const sheet = paper.current
@@ -150,7 +153,8 @@ export const StickyNote = memo(function StickyNote({ note, visible, depth, paper
     const local = projectOnWall(event.ray, group.current.parent, paper.current?.position.z ?? depth)
     if (!local) return
     const pointerId = event.pointerId
-    const isTouch = event.nativeEvent.pointerType === 'touch'
+    lastPointer.current = event.nativeEvent.pointerType
+    const isTouch = lastPointer.current === 'touch'
     const unwatchBoard = useWallStore.subscribe((current) => {
       // A touch that has not moved yet does not lock board switching.
       if (current.setDragging !== state.setDragging) finishDrag(false)
@@ -226,7 +230,11 @@ export const StickyNote = memo(function StickyNote({ note, visible, depth, paper
       <mesh ref={paper} position={[0, 0, depth]} geometry={paperGeometry} raycast={visible ? Mesh.prototype.raycast : ignoreRaycast}
         onPointerDown={pointerDown} onPointerMove={pointerMove} onPointerUp={pointerUp}
         onClick={(e) => { if (useWallStore.getState().mode === 'select') e.stopPropagation() }}
-        onDoubleClick={(e) => { if (useWallStore.getState().mode === 'select') { e.stopPropagation(); useWallStore.getState().editNote(note.id) } }}
+        onDoubleClick={(e) => {
+          if (useWallStore.getState().mode !== 'select') return
+          e.stopPropagation()
+          if (!compact || lastPointer.current !== 'touch') useWallStore.getState().editNote(note.id)
+        }}
         onPointerOver={(e) => { if (useWallStore.getState().mode === 'select') { e.stopPropagation(); gl.domElement.style.cursor = 'grab' } }}
         onPointerOut={() => { if (!drag.current) gl.domElement.style.cursor = '' }}>
         <meshStandardMaterial ref={material} roughness={0.97} side={DoubleSide} opacity={1} transparent={false} depthTest depthWrite />
@@ -238,7 +246,7 @@ export const StickyNote = memo(function StickyNote({ note, visible, depth, paper
         <planeGeometry args={[NOTE_WIDTH + 0.078, NOTE_HEIGHT + 0.078]} />
         <meshBasicMaterial color="#8f7957" transparent opacity={0.72} depthWrite={false} toneMapped={false} />
       </mesh>}
-      {visible && selected && !editing && <NoteResizeHandles note={note} object={group} footprint={footprint} depth={depth} />}
+      {visible && selected && !editing && <NoteResizeHandles note={note} object={group} footprint={footprint} depth={depth} compact={compact} />}
       </group>
     </group>
   )

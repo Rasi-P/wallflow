@@ -33,12 +33,14 @@ export async function verifyWorkspaceBrowser(
     await mobile.goto(preview + '/app/')
     await laptop.locator('.save-status--supabase').filter({ hasText: 'Synced to account' }).waitFor(options)
     await laptop.locator('canvas').waitFor(options)
-    await mobile.locator('.mobile-sync').filter({ hasText: 'Synced' }).waitFor(options)
-    assert.equal(await mobile.locator('canvas').count(), 0)
-    for (const width of [320, 390, 760]) {
-      await mobile.setViewportSize({ width, height: 844 })
-      const box = await mobile.getByRole('button', { name: 'Capture', exact: true }).boundingBox()
+    await mobile.locator('.save-status--supabase').filter({ hasText: 'Synced to account' }).waitFor(options)
+    await mobile.locator('.wall-scene canvas').waitFor(options)
+    const canvas = await mobile.locator('.wall-scene canvas').elementHandle()
+    for (const [width, height] of [[320, 700], [390, 844], [844, 390]]) {
+      await mobile.setViewportSize({ width, height })
+      const box = await mobile.getByRole('button', { name: 'Quick Capture', exact: true }).boundingBox()
       assert.ok(box && box.x >= 0 && box.x + box.width <= width && box.height >= 44, 'Capture fits the mobile viewport.')
+      assert.ok(await canvas?.evaluate((element: HTMLElement) => element.isConnected), 'Rotation retains the same WebGL canvas.')
     }
     await mobile.setViewportSize({ width: 390, height: 844 })
     const workerControlled = () => Boolean(navigator.serviceWorker.controller)
@@ -48,8 +50,8 @@ export async function verifyWorkspaceBrowser(
     const commitRoute = project + '/rest/v1/rpc/commit_wallflow_workspace'
     const enterNote = async (page: typeof laptop, title: string) => {
       const onPhone = page === mobile
-      await page.getByRole('button', { name: onPhone ? 'New note' : 'Add a note', exact: true }).click(options)
-      const editor = page.getByRole('textbox', { name: onPhone ? 'Title' : 'Note title', exact: true })
+      await page.getByRole('button', { name: 'Add a note', exact: true }).click(options)
+      const editor = page.getByRole('textbox', { name: 'Note title', exact: true })
       await editor.fill(title, options)
       if (onPhone) await page.getByRole('button', { name: 'Done', exact: true }).click(options)
       else await editor.press('Enter', options)
@@ -64,7 +66,7 @@ export async function verifyWorkspaceBrowser(
     await laptop.unroute(commitRoute)
     await laptop.evaluate(() => window.dispatchEvent(new Event('online')))
     await laptop.locator('.save-status--supabase').filter({ hasText: 'Synced to account' }).waitFor(options)
-    await mobile.getByText(`${initialNoteCount + 1} of 60 active notes`, { exact: true }).waitFor(options)
+    await mobile.locator('.wall-note-count').filter({ hasText: `${initialNoteCount + 1} notes` }).waitFor(options)
 
     await laptop.getByRole('button', { name: 'Manage boards' }).click(options)
     const downloaded = laptop.waitForEvent('download', options)
@@ -88,7 +90,7 @@ export async function verifyWorkspaceBrowser(
     laptop.once('dialog', (dialog: { accept(): Promise<void> }) => dialog.accept())
     await laptop.getByLabel('Restore workspace backup').setInputFiles(upload, options)
     await laptop.locator('.save-status--supabase').filter({ hasText: 'Synced to account' }).waitFor(options)
-    await mobile.getByText(`${initialNoteCount + 1} of 60 active notes`, { exact: true }).waitFor(options)
+    await mobile.locator('.wall-note-count').filter({ hasText: `${initialNoteCount + 1} notes` }).waitFor(options)
 
     await mobile.goto(preview + '/capture/native/ios')
     let capture = mobile.getByRole('dialog', { name: 'Quick Capture' })
@@ -116,15 +118,22 @@ export async function verifyWorkspaceBrowser(
       return url.origin === preview && !url.search && !url.pathname.startsWith('/auth/') && !url.pathname.startsWith('/rest/')
     }))
     await capture.getByRole('button', { name: 'Close dialog' }).click()
-    await mobile.getByRole('button', { name: 'Edit Offline from Quick Capture' }).click()
+    const searchForCapture = async (query: string) => {
+      await mobile.getByRole('button', { name: 'Find notes and sections' }).click()
+      await mobile.getByRole('searchbox', { name: 'Search your notes' }).fill(query)
+      return mobile.getByRole('button', { name: /Untitled note.*(Offline from Quick Capture|Another step)/ })
+    }
+    await (await searchForCapture('Offline from Quick Capture')).click()
+    await mobile.getByRole('button', { name: 'Edit note', exact: true }).click()
+    await mobile.getByRole('button', { name: 'Task details' }).click()
     await mobile.getByRole('checkbox', { name: 'Complete checklist item 1' }).check()
     await mobile.getByRole('button', { name: 'Set reminder' }).click()
     await mobile.getByLabel('Reminder date and time').fill('2031-01-20T09:00')
     await mobile.getByRole('button', { name: 'Save reminder' }).click()
     await mobile.getByRole('button', { name: 'Done', exact: true }).click()
-    await mobile.getByRole('searchbox', { name: 'Search notes' }).fill('Another step')
-    await mobile.getByRole('button', { name: 'Edit Offline from Quick Capture' }).waitFor(options)
-    await mobile.getByRole('button', { name: 'Settings' }).click()
+    await (await searchForCapture('Another step')).waitFor(options)
+    await mobile.getByRole('button', { name: 'Close dialog' }).click()
+    await mobile.getByRole('button', { name: 'Wall settings' }).click()
     await mobile.getByLabel('Mobile theme').selectOption('dark')
     assert.equal(await mobile.evaluate(() => document.documentElement.dataset.mobileTheme), 'dark')
     await mobile.getByRole('button', { name: 'Done', exact: true }).click()

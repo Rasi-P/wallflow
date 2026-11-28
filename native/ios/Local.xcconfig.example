@@ -1,0 +1,7 @@
+// Copy to Local.xcconfig. The $() keeps the slashes from starting an xcconfig comment.
+DEVELOPMENT_TEAM = YOUR_TEAM_ID
+WALLFLOW_BUNDLE_ID = com.yourorganization.wallflow
+WALLFLOW_APP_GROUP = group.com.yourorganization.wallflow
+WALLFLOW_WEB_HOST = wallflow.example.com
+WALLFLOW_SUPABASE_URL = https:/$()/example-ref.supabase.co
+WALLFLOW_SUPABASE_PUBLISHABLE_KEY = sb_publishable_REPLACE_ME

@@ -1,4 +1,5 @@
 import { ArrowRight, CircleAlert, RefreshCw } from 'lucide-react'
+import { InstallWallflow } from '../pwa/PwaControls'
 import type { SignInState } from '../types/auth'
 
 export function AuthLoading({ opening = false }: { opening?: boolean }) {
@@ -34,6 +35,7 @@ export function SignIn({ state, onContinue, onRetry, onUseDevice, onExit, exitLa
         {starting && <span className="auth-sr-only" role="status">Opening Google sign-in</span>}
         {onExit && <button type="button" className="text-button" onClick={onExit}>{exitLabel}</button>}
         {onUseDevice && <button type="button" className="text-button" disabled={starting} onClick={onUseDevice}>Use this browser only</button>}
+        <InstallWallflow />
         <p className="sign-in-local">Sign in to open your account workspace on any device.</p>
       </div>
       <div className="sign-in-preview" aria-hidden="true">

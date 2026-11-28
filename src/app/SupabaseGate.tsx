@@ -26,12 +26,12 @@ function ConnectedWorkspace({ session, mountAccount }: {
       if (event.persisted) session.resume()
     }
     const interval = window.setInterval(recheck, 30_000)
-    for (const event of ['focus', 'online']) window.addEventListener(event, recheck)
+    for (const event of ['focus', 'online', 'offline']) window.addEventListener(event, recheck)
     window.addEventListener('pageshow', onPageShow)
     document.addEventListener('visibilitychange', recheck)
     return () => {
       window.clearInterval(interval)
-      for (const event of ['focus', 'online']) window.removeEventListener(event, recheck)
+      for (const event of ['focus', 'online', 'offline']) window.removeEventListener(event, recheck)
       window.removeEventListener('pageshow', onPageShow)
       document.removeEventListener('visibilitychange', recheck)
       disconnect()

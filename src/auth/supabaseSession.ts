@@ -52,6 +52,7 @@ export function createSupabaseSession(
   let automaticChecks = false
   let callbackOwnerId: string | undefined
   let sessionOwnerId: string | null = null
+  let usedOffline = false
   let signingOut = false
   let pending: AbortController | undefined
   let eventTimer: ReturnType<typeof setTimeout> | undefined
@@ -70,10 +71,22 @@ export function createSupabaseSession(
     const previous = store.getState()
     const expectedOwnerId = callbackOwnerId
     try {
+      if (!expectedOwnerId && auth.offlineAccount && globalThis.navigator?.onLine === false) {
+        usedOffline = true
+        const cached = await auth.offlineAccount()
+        if (request.signal.aborted) return
+        sessionOwnerId = cached?.id ?? null
+        update(cached ? { status: 'ready', account: cached } : {
+          status: 'anonymous', starting: false, notice: 'Reconnect to verify your Google account and open its workspace.',
+        })
+        return
+      }
       const account = await auth.currentAccount()
       if (request.signal.aborted) return
       sessionOwnerId = account?.id ?? null
       if (!account || (expectedOwnerId && account.id !== expectedOwnerId)) {
+        usedOffline = false
+        auth.forgetOfflineAccount?.()
         update({
           status: 'anonymous', starting: false,
           notice: expectedOwnerId ? callbackFailed : previous.status === 'ready' ? sessionEnded : undefined,
@@ -91,6 +104,9 @@ export function createSupabaseSession(
         callbackOwnerId = undefined
         navigation.replacePath('/app/')
       }
+      await auth.rememberOfflineAccount?.(account.id, request.signal)
+      if (request.signal.aborted) return
+      usedOffline = false
       update({ status: 'ready', account })
     } catch (error) {
       if (request.signal.aborted) return
@@ -98,9 +114,11 @@ export function createSupabaseSession(
         // A verified, mounted editor can keep its drafts during a transport outage.
         return
       }
-      update(error instanceof SupabaseWorkspaceDenied
-        ? { status: 'blocked', notice: workspaceDenied }
-        : { status: 'error', notice: 'Couldn’t verify your Supabase workspace. Check your connection and retry.' })
+      if (error instanceof SupabaseWorkspaceDenied) {
+        usedOffline = false
+        auth.forgetOfflineAccount?.()
+        update({ status: 'blocked', notice: workspaceDenied })
+      } else update({ status: 'error', notice: 'Couldn’t verify your Supabase workspace. Check your connection and retry.' })
     } finally {
       if (pending === request) pending = undefined
     }
@@ -183,7 +201,7 @@ export function createSupabaseSession(
   }
 
   function recheck() {
-    if (automaticChecks && store.getState().status === 'ready' && globalThis.navigator?.onLine !== false) void verify()
+    if (automaticChecks && (store.getState().status === 'ready' || usedOffline)) void verify()
   }
 
   function resume() {

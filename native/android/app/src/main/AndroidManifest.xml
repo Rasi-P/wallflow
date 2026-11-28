@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <application android:name=".WallflowApplication" android:label="WALLFLOW"
+        android:icon="@mipmap/wallflow_launcher" android:allowBackup="false"
+        android:usesCleartextTraffic="false" android:theme="@style/WallflowTheme">
+        <activity android:name=".CaptureActivity" android:exported="true" android:launchMode="singleTask"
+            android:configChanges="orientation|screenSize|keyboardHidden" android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="${wallflowHost}" android:path="/capture/native/android" />
+                <data android:scheme="https" android:host="${wallflowHost}" android:path="/auth/native/android/callback" />
+            </intent-filter>
+        </activity>
+        <receiver android:name=".CaptureWidget" android:exported="false">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/capture_widget" />
+        </receiver>
+    </application>
+</manifest>

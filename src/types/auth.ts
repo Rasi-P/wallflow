@@ -14,6 +14,9 @@ export interface AuthSessionTransport {
   signInWithGoogle(redirectTo: string): Promise<void>
   exchangeCode(code: string): Promise<string>
   currentAccount(): Promise<Account | null>
+  offlineAccount?(): Promise<Account | null>
+  rememberOfflineAccount?(ownerId: string, signal: AbortSignal): Promise<void>
+  forgetOfflineAccount?(): void
   signOut(): Promise<void>
   subscribe(onChange: (event: AuthChangeEvent, ownerId: string | null) => void): () => void
 }

@@ -2,12 +2,13 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Account } from '../types/auth.ts'
 import { createSupabaseWorkspaceCommands } from '../auth/supabaseWorkspaceCommands.ts'
 import { BOARD_LINK_PREFIX } from '../utils/boardLinkStorage'
-import { createWorkspaceOutbox, workspaceOutboxKey } from '../utils/supabaseOutbox'
+import { createCaptureStorage, createWorkspaceOutbox, workspaceOutboxKey } from '../utils/supabaseOutbox'
 import { downloadSnapshot, mountAccountBoard } from './linkedBoard'
 import { createSupabaseBrowserImports } from './supabaseBrowserImports'
 import { workspace } from './wallStore'
 import { createWorkspaceSync } from './workspaceSync'
 import { WORKSPACE_STORAGE_KEY } from './workspaceStorage'
+import { createQuickCapture } from '../utils/quickCapture'
 import { parseWorkspaceBackup, workspaceBackupFormat } from '../utils/browserRecovery'
 
 export function mountSupabaseLinkedBoard(client: SupabaseClient, project: string, account: Account, verifySession: () => void) {
@@ -37,11 +38,23 @@ export function mountSupabaseLinkedBoard(client: SupabaseClient, project: string
         }
       },
     })
+    const captures = createQuickCapture({
+      storage: createCaptureStorage(key),
+      send: ({ id, content, boardId, checklist }) => api.quickCapture(id, content, boardId, checklist),
+      online: () => started && !stopped() && navigator.onLine !== false,
+      canSend: ({ boardId }) => {
+        const snapshot = sync.snapshot()
+        return !boardId || !snapshot?.draft?.boards[boardId] || Boolean(snapshot.base.workspace.boards[boardId])
+      },
+      onState: (capture) => update({ capture }),
+      onCaptured: () => { void sync.sync() },
+      onAuth: verifySession,
+    })
     let channel: ReturnType<SupabaseClient['channel']> | undefined
     let largestRevision = -1n
     const refresh = () => {
       if (stopped() || !started) return
-      void sync.sync()
+      void sync.sync().then(captures.flush)
       if (attached && navigator.onLine !== false) void imports.recover().catch(() => {})
     }
     const onVisible = () => { if (document.visibilityState === 'visible') refresh() }
@@ -98,6 +111,7 @@ export function mountSupabaseLinkedBoard(client: SupabaseClient, project: string
     return {
       close() {
         lifetime.abort()
+        captures.close()
         clearInterval(interval)
         clearTimeout(waiting)
         window.removeEventListener('focus', onVisible)
@@ -109,7 +123,12 @@ export function mountSupabaseLinkedBoard(client: SupabaseClient, project: string
         void sync.close().finally(releaseLease!)
         workspace.clearLinkedBoard()
       },
-      retry: async () => { if (started) await sync.sync(); if (attached) void imports.recover().catch(() => {}) },
+      retry: async () => {
+        if (started) { await sync.sync(); await captures.flush() }
+        if (attached) void imports.recover().catch(() => {})
+      },
+      captureNote: captures.submit,
+      changeCapture: captures.change,
       reloadSaved: () => sync.resolve(false),
       keepDraft: () => { void sync.resolve(true) },
       exportWorkspace,
